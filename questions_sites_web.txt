@@ -1,0 +1,16 @@
+FINANCIAL QUESTIONS:
+
+https://github.com/andyhu4023/Quant-Interview-Question-Bank
+
+https://openquant.co/
+
+https://www.quantguide.io/
+
+https://www.quantable.io/
+
+https://www.kaggle.com/datasets/yousefsaeedian/financial-q-and-a-10k
+
+
+DATA SCIENCIST/MACHINE LEARNING QUESTIONS
+
+https://www.kaggle.com/discussions/general/97881
