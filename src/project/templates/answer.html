@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Respuesta - Copiloto de RRHH</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Pregunta recibida</h1>
+    </div>
+
+    <div class="card">
+      <p class="template-line"><strong>Pregunta:</strong> {{ question }}</p>
+      <p class="template-line"><strong>Respuesta:</strong> {{ answer }}</p>
+
+      {% if error %}
+      <div class="error">Error: {{ error }}</div>
+      {% endif %}
+    </div>
+
+    <div class="row">
+      <a href="/ask" class="btn btn-primary">Haz otra pregunta</a>
+      <a href="/" class="btn btn-secondary">Volver a la página principal</a>
+    </div>
+  </div>
+</body>
+</html>
