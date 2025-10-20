@@ -78,7 +78,7 @@ const InterviewChatbot = () => {
           setInterviewStarted(true);
           const welcomeMsg = {
             type: 'bot',
-            text: '¡Hola! Soy tu asistente de entrevista. Te haré una serie de preguntas para conocerte mejor. Responde con sinceridad y detalle.',
+            text: '¡Hola! Soy tu asistente de entrevista. Te haré una serie de preguntas para analizar tus conocimientos.',
             timestamp: new Date()
           };
           setMessages([welcomeMsg]);

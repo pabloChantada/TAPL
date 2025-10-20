@@ -11,7 +11,7 @@
 - [ ] Implementacion rag
     - [ ] Investigar rags mas complejos
     - [ ] Implementacion de rags mas complejos
-- [ ] Seleccion de modelos (seguramente gemini)
+- [x] Seleccion de modelos (seguramente gemini)
 
 # 20/10
-Se puede provar con el SQUAD para el modelo, pero inicialmente vamos a hacerlo con un dataset simple
+- [x] Se puede provar con el SQUAD para el modelo, pero inicialmente vamos a hacerlo con un dataset simple

@@ -1,13 +1,11 @@
 
 import os
 from datasets import load_dataset
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import pandas as pd
 import re
-from typing import Optional
 
-from google import genai
-from google.generativeai import GenerativeModel
+import google.generativeai as genai
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,20 +16,34 @@ class GeminiHandler:
         if not self._api_key:
             raise ValueError("GEMINI_API_KEY not found in environment variables")
         
+        # Configure the API
         genai.configure(api_key=self._api_key)
+        
+        # List available models and print them for debugging
+        print("Available models:", [m.name for m in genai.list_models()])
+        
         self.model = self._load_model()
         self.squad_data = None
         self.chat = None
 
-    def _load_model(self) -> GenerativeModel:
+    def _load_model(self) -> Any:
         """Load the Gemini Pro model"""
         try:
-            model = genai.GenerativeModel('gemini-pro')
+            # Try to get the most appropriate model
+            available_models = [m for m in genai.list_models() if 'gemini-pro' in m.name]
+            if not available_models:
+                raise Exception("No Gemini Pro model available")
+            
+            model_name = available_models[0].name
+            print(f"Using model: {model_name}")
+            
+            model = genai.GenerativeModel(model_name)
             return model
         except Exception as e:
             raise Exception(f"Failed to load Gemini model: {str(e)}")
 
-    def load_and_clean_squad_hf(self, limit: Optional[int] = None):
+    def load_and_clean_squad_hf(self, limit: Optional[int] = None) -> None:
+        """Load and clean SQuAD dataset from HuggingFace"""
         try:
             dataset = load_dataset("squad", split="train")
             if limit:
@@ -44,14 +56,16 @@ class GeminiHandler:
                     "answer": re.sub(r'\s+', ' ', example["answers"]["text"][0]).strip()
                 }
 
-            return [clean(ex) for ex in dataset]
+            self.squad_data = pd.DataFrame([clean(ex) for ex in dataset])
+            print(f"Loaded {len(self.squad_data)} examples from SQuAD dataset")
+            
         except Exception as e:
-            raise Exception(f"str{e}") 
+            raise Exception(f"Failed to load SQuAD data: {str(e)}")
 
     def train_with_examples(self, num_examples: int = 10) -> None:
         """Train the model with SQuAD examples"""
         if self.squad_data is None:
-            raise ValueError("SQuAD data not loaded. Call load_squad_data first.")
+            raise ValueError("SQuAD data not loaded. Call load_and_clean_squad_hf first.")
 
         try:
             # Sample training examples
@@ -70,8 +84,16 @@ class GeminiHandler:
                 examples_text += f"Answer: {example['answer']}\n"
 
             # Initialize chat with context
-            self.chat = self.model.start_chat(history=[])
-            self.chat.send_message(system_prompt + examples_text)
+            try:
+                self.chat = self.model.start_chat(history=[])
+                response = self.chat.send_message(system_prompt + examples_text)
+                print("Chat initialized with response:", response.text)
+            except Exception as chat_error:
+                print(f"Chat initialization error: {str(chat_error)}")
+                # Fallback to direct generation if chat is not available
+                self.chat = None
+                response = self.model.generate_content(system_prompt + examples_text)
+                print("Using direct generation instead of chat")
             
             print("Model trained with SQuAD examples and ready for questions")
             
@@ -80,12 +102,17 @@ class GeminiHandler:
 
     async def get_answer(self, context: str, question: str) -> str:
         """Get answer for a question given a context"""
-        if not self.chat:
-            raise ValueError("Model not trained. Call train_with_examples first.")
+        if not self.chat and not self.model:
+            raise ValueError("Model not initialized properly")
 
         try:
             prompt = f"Context: {context}\nQuestion: {question}\nProvide a concise answer based only on the given context."
-            response = self.chat.send_message(prompt)
+            
+            if self.chat:
+                response = self.chat.send_message(prompt)
+            else:
+                response = self.model.generate_content(prompt)
+                
             return response.text
             
         except Exception as e:
