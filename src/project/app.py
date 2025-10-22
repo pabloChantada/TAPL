@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import os
 from dotenv import load_dotenv
-from .models.model import GeminiHandler
+from .models.model import OpenAIHandler
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv()
@@ -24,7 +24,7 @@ app.add_middleware(
 )
 
 # Initialize Gemini handler
-gemini_handler = GeminiHandler()
+openai_handler = OpenAIHandler()
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
@@ -61,8 +61,8 @@ async def root(request: Request):
 @app.on_event("startup")
 async def startup_event():
     try:
-        gemini_handler.load_and_clean_squad_hf(limit=5000)
-        gemini_handler.train_with_examples(num_examples=20)
+        openai_handler.load_and_clean_squad_hf(limit=5000)
+        openai_handler.train_with_examples(num_examples=20)
         print("Gemini model loaded and trained successfully")
     except Exception as e:
         print(f"Error initializing Gemini model: {str(e)}")
@@ -117,8 +117,9 @@ async def get_next_question(session_id: str):
         
         Responde SOLO con la pregunta, sin ninguna introducción ni explicación adicional."""
 
-        generated_question = await gemini_handler.get_answer("", prompt)
+        generated_question = await openai_handler.get_answer("", prompt)
         
+        print(generated_question)
         return JSONResponse({
             "completed": False,
             "question_number": current_q + 1,

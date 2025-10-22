@@ -52,7 +52,7 @@ const InterviewChatbot = () => {
     const [interviewStarted, setInterviewStarted] = useState(false);
     const [sessionId, setSessionId] = useState(null);
     const [questionCount, setQuestionCount] = useState(0);
-    const [totalQuestions, setTotalQuestions] = useState(2); // Match backend default
+    const [totalQuestions, setTotalQuestions] = useState(8); // Match backend default
     const messagesEndRef = useRef(null);
 
 
@@ -70,7 +70,7 @@ const InterviewChatbot = () => {
           const response = await fetch('/api/interview/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ total_questions: 2 })
+            body: JSON.stringify({ total_questions: 8 })
           });
           const data = await response.json();
           setSessionId(data.session_id);
