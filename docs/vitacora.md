@@ -25,12 +25,12 @@
 ### RAG básico
 - [x] Definición del *pipeline RAG*: retriever (FAISS/Chroma), reader (Gemini u otro), y prompt manager  
 - [x] Evaluación *baseline* (sin RAG) para comparar  
-- [ ] Diseño de prompts específicos para entrevistas  
+- [x] Diseño de prompts específicos para entrevistas  
 
 ### RAG avanzado
 - [ ] Investigación de RAGs más complejos (ej. ColBERT, HyDE, Context compression, etc.)  
-- [ ] Implementación de RAG mejorado (retrieval + context ranking + respuesta)  
-- [ ] Ajuste de temperatura y longitud de respuesta  
+- [x] Implementación de RAG mejorado (retrieval + context ranking + respuesta)  
+- [x] Ajuste de temperatura y longitud de respuesta  
 
 ---
 
@@ -60,7 +60,15 @@
 - [ ] (Opcional) Soporte multilingüe (ES / EN)  
 
 ### Extensiones 
-- [ ] Integración con vector DB + embeddings propios  
+- [x] Integración con vector DB + embeddings propios  
 - [ ] Dataset especializado en entrevistas reales  
 - [ ] Sistema de *auto-evaluación final* con puntaje (claridad, estructura, tono)  
 
+
+# MODELOS PROBADOS
+- DialGPT
+- Qwen
+- Bert multilingual
+- Llama
+- Gemini
+- ChatGPT

@@ -233,13 +233,14 @@ class RAG:
         if verbose:
             print(f"[RAG] Se encontraron {len(results)} contextos similares.")
         return results
+    
 
 
 if __name__ == "__main__":
     # Ejemplos de uso para testing reducido:
     rag = RAG(verbose=True)
     # Para testing rápido: solo indexar 10 pares QA (aleatorios), y limitar a 50 chunks totales
-    rag.create_chroma_db(sample_size=10, sample_random=True, chunk_size=512, max_chunks=50, verbose=True)
+    rag.create_chroma_db(sample_random=True, chunk_size=512, max_chunks=50, verbose=True)
     print("Database creada (testing reducido)")
     res = rag.search("What happened in 1945", k=5, verbose=True)
     print("Search completed, resultados:", len(res))
