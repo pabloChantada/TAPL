@@ -1,94 +1,147 @@
-import unittest
-from unittest.mock import MagicMock, patch, mock_open
-import numpy as np
-from project.rag import RAG
 
-class DummyEmbedding:
-    def __init__(self, values):
-        self.values = values
+import json
+import os
+import random
+import pytest
 
-class DummyEmbedContentResult:
-    def __init__(self, embeddings):
-        self.embeddings = embeddings
+import importlib
+rag_module = importlib.import_module("src.project.rag.rag")  # ahora rag_module es el módulo rag.py
+from src.project.rag import RAG
 
-class DummyClient:
-    class models:
-        @staticmethod
-        def embed_content(model, contents, config):
-            # Return as many embeddings as contents
-            return DummyEmbedContentResult([DummyEmbedding([float(i)]*3) for i in range(len(contents))])
 
-class DummyVectorDB:
-    def __init__(self):
-        self.data = []
-    def add(self, chunk, embedding):
-        self.data.append((chunk, embedding))
-    def save(self, path):
-        self.saved_path = path
-    def load(self, path):
-        self.loaded_path = path
-    def search(self, query_embedding, k=5):
-        return [("chunk", 0.99)] * k
+def write_json(path, data):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
 
-@patch("project.rag.VectorDB", DummyVectorDB)
-@patch("project.rag.RecursiveCharacterTextSplitter")
-class TestRAG(unittest.TestCase):
-    def setUp(self):
-        self.dummy_client = DummyClient()
-        self.rag = RAG(dir="dummy_dir", client=self.dummy_client)
 
-    @patch("os.listdir", return_value=["file1.txt", "file2.txt"])
-    @patch("builtins.open", new_callable=mock_open, read_data="test content")
-    def test_reader_reads_txt_files(self, mock_file, mock_listdir, mock_splitter):
-        self.rag.text = ""
-        result = self.rag.reader()
-        self.assertIn("test content", result)
-        self.assertTrue(result.endswith("\n"))
+def make_squad_json(n_qas):
+    # Construye un JSON tipo SQuAD con n_qas preguntas en un solo paragraph
+    qas = []
+    for i in range(n_qas):
+        qas.append({"question": f"question_{i}", "answers": [{"text": f"answer_{i}"}], "id": str(i)})
+    data = {
+        "data": [
+            {
+                "title": "test",
+                "paragraphs": [
+                    {
+                        "context": "This is the context.",
+                        "qas": qas,
+                    }
+                ],
+            }
+        ]
+    }
+    return data
 
-    def test_chunker_splits_text(self, mock_splitter):
-        self.rag.text = "a" * 200
-        instance = mock_splitter.return_value
-        instance.split_text.return_value = ["chunk1", "chunk2"]
-        chunks = self.rag.chunker(chunk_size=100)
-        self.assertEqual(chunks, ["chunk1", "chunk2"])
-        mock_splitter.assert_called_once()
 
-    def test_embedder_returns_embeddings(self, mock_splitter):
-        texts = ["text1", "text2"]
-        embeddings = self.rag.embedder(texts)
-        self.assertEqual(len(embeddings), 2)
-        self.assertTrue(isinstance(embeddings[0], np.ndarray))
+def test_reader_squad_respects_max_texts_and_sample(tmp_path):
+    # Crear varios archivos JSON en tmp_path
+    file1 = tmp_path / "db1.json"
+    file2 = tmp_path / "db2.json"
 
-    @patch.object(RAG, "reader")
-    @patch.object(RAG, "chunker")
-    @patch.object(RAG, "embedder")
-    def test_create_database(self, mock_embedder, mock_chunker, mock_reader, mock_splitter):
-        rag = RAG(dir="dummy_dir", client=self.dummy_client)  # Needed to patch with VectorDB
+    # db1 tiene 3 pares, db2 tiene 4 pares -> total 7
+    write_json(file1, make_squad_json(3))
+    write_json(file2, make_squad_json(4))
 
-        mock_reader.return_value = "some text"
-        mock_chunker.return_value = ["chunk1", "chunk2"]
-        mock_embedder.return_value = [np.array([1,2,3]), np.array([4,5,6])]
+    rag = RAG(db_path=str(tmp_path), verbose=False)
 
-        db = rag.create_database()
-        self.assertIsInstance(db, DummyVectorDB)
+    # Sin límite: debería devolver 7
+    all_texts = rag.reader_SQUAD()
+    assert len(all_texts) == 7
 
-    def test_save_database_calls_save(self, mock_splitter):
-        self.rag.vector_db.save = MagicMock()
-        self.rag.save_database("test.pkl")
-        self.rag.vector_db.save.assert_called_once()
-        self.assertTrue(self.rag.vector_db.save.call_args[0][0].endswith("test.pkl"))
+    # Limitar a 2 (sin sample aleatorio) -> primeros 2
+    first_two = rag.reader_SQUAD(max_texts=2, sample_random=False)
+    assert len(first_two) == 2
 
-    def test_load_database_calls_load(self, mock_splitter):
-        self.rag.vector_db.load = MagicMock()
-        self.rag.load_database("test.pkl")
-        self.rag.vector_db.load.assert_called_once()
-        self.assertTrue(self.rag.vector_db.load.call_args[0][0].endswith("test.pkl"))
+    # Limitar a 3 con sample aleatorio -> longitud 3 (contenido puede variar)
+    random.seed(0)
+    sampled = rag.reader_SQUAD(max_texts=3, sample_random=True)
+    assert len(sampled) == 3
+    # Formato esperado
+    for t in sampled:
+        assert "Contexto:" in t and "Pregunta:" in t and "Respuesta:" in t
 
-    def test_search_returns_results(self, mock_splitter):
-        self.rag.embedder = MagicMock(return_value=[np.array([1,2,3])])
-        self.rag.vector_db.search = MagicMock(return_value=[("chunk", 0.99)])
-        results = self.rag.search(["query"], k=1)
-        self.assertEqual(results, [("chunk", 0.99)])
 
-if __name__ == "__main__":
-    unittest.main()
+def test_chunker_respects_max_chunks(monkeypatch):
+    # Mock del RecursiveCharacterTextSplitter para devolver chunks predecibles
+    class DummySplitter:
+        def __init__(self, chunk_size=None, chunk_overlap=None, length_function=None, add_start_index=None):
+            pass
+
+        def split_text(self, text):
+            # Devuelve 10 chunks por cada texto
+            return [f"chunk_{i}" for i in range(10)]
+
+    monkeypatch.setattr(rag_module, "RecursiveCharacterTextSplitter", DummySplitter)
+
+    rag = RAG(db_path=".", verbose=False)
+    # Dos textos -> cada uno genera 10 chunks, pero max_chunks=5 debe truncar a 5
+    chunks = rag.chunker(["texto1", "texto2"], chunk_size=10, max_chunks=5)
+    assert len(chunks) == 5
+    assert chunks == ["chunk_0", "chunk_1", "chunk_2", "chunk_3", "chunk_4"]
+
+
+def test_create_chroma_db_calls_from_texts_and_persists(monkeypatch, tmp_path):
+    # Mockear reader_SQUAD para devolver un número controlado de textos
+    monkeypatch.setattr(RAG, "reader_SQUAD", lambda self, max_texts=None, sample_random=False: ["t1", "t2"])
+
+    # Mockear chunker para devolver chunks conocidas
+    monkeypatch.setattr(RAG, "chunker", lambda self, qa_texts, chunk_size=1024, max_chunks=None: ["c1", "c2", "c3"])
+
+    # Mockear _get_embeddings para devolver un objeto marcador
+    mock_embedding = object()
+    monkeypatch.setattr(RAG, "_get_embeddings", lambda self: mock_embedding)
+
+    # Mock Chroma con from_texts que registra la llamada
+    class MockChroma:
+        last_call = None
+        init_args = None
+
+        def __init__(self, persist_directory=None, embedding_function=None):
+            MockChroma.init_args = {"persist_directory": persist_directory, "embedding_function": embedding_function}
+
+        @classmethod
+        def from_texts(cls, texts, embedding, persist_directory):
+            cls.last_call = {"texts": texts, "embedding": embedding, "persist_directory": persist_directory}
+            return cls(persist_directory=persist_directory, embedding_function=embedding)
+
+    monkeypatch.setattr(rag_module, "Chroma", MockChroma)
+
+    # Usar tmp_path como db_path para verificar ruta de persistencia
+    rag = RAG(db_path=str(tmp_path), verbose=False)
+    rag.create_chroma_db(sample_size=1, sample_random=False, chunk_size=512, max_chunks=None, verbose=False)
+
+    # Comprobar que from_texts fue llamado con los chunks devueltos por chunker
+    assert MockChroma.last_call is not None
+    assert MockChroma.last_call["texts"] == ["c1", "c2", "c3"]
+    assert MockChroma.last_call["embedding"] is mock_embedding
+    expected_persist = os.path.join(str(tmp_path), "chroma_db")
+    assert MockChroma.last_call["persist_directory"] == expected_persist
+
+    # Comprobar que la instancia también recibió los mismos argumentos al construir
+    assert MockChroma.init_args["persist_directory"] == expected_persist
+    assert MockChroma.init_args["embedding_function"] is mock_embedding
+
+
+def test_load_chroma_db_uses_embedding_function(monkeypatch, tmp_path):
+    # Mock _get_embeddings para devolver objeto
+    mock_embedding = object()
+    monkeypatch.setattr(RAG, "_get_embeddings", lambda self: mock_embedding)
+
+    # Mock Chroma para capturar init args
+    class MockChroma2:
+        init_args = None
+
+        def __init__(self, persist_directory=None, embedding_function=None):
+            MockChroma2.init_args = {"persist_directory": persist_directory, "embedding_function": embedding_function}
+
+    monkeypatch.setattr(rag_module, "Chroma", MockChroma2)
+
+    rag = RAG(db_path=str(tmp_path), verbose=False)
+    rag.load_chroma_db(verbose=False)
+
+    expected_persist = os.path.join(str(tmp_path), "chroma_db")
+    assert MockChroma2.init_args is not None
+    assert MockChroma2.init_args["persist_directory"] == expected_persist
+    assert MockChroma2.init_args["embedding_function"] is mock_embedding

@@ -1,13 +1,14 @@
+
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from project.rag.question_generator import QuestionGenerator, GeminiGenerationError
 from pydantic import BaseModel
 from typing import List, Optional
 import os
 from dotenv import load_dotenv
-from .models.model import GeminiHandler
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv()
@@ -23,8 +24,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Gemini handler
-gemini_handler = GeminiHandler()
+
+question_generator = QuestionGenerator()
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
@@ -39,7 +40,7 @@ class Question(BaseModel):
 
 class InterviewSession(BaseModel):
     session_id: Optional[str] = None
-    total_questions: int = 2
+    total_questions: int = 4
 
 class UserAnswer(BaseModel):
     session_id: str
@@ -58,18 +59,8 @@ async def root(request: Request):
         context={"request": request}
     )
 
-@app.on_event("startup")
-async def startup_event():
-    try:
-        gemini_handler.load_and_clean_squad_hf(limit=5000)
-        gemini_handler.train_with_examples(num_examples=20)
-        print("Gemini model loaded and trained successfully")
-    except Exception as e:
-        print(f"Error initializing Gemini model: {str(e)}")
-
 @app.post("/api/interview/start")
 async def start_interview(session: InterviewSession):
-    """Inicia una nueva sesión de entrevista"""
     import uuid
     session_id = str(uuid.uuid4())
     
@@ -105,41 +96,34 @@ async def get_next_question(session_id: str):
         })
     
     try:
-        # Generar pregunta usando Gemini
-        prompt = f"""Genera UNA pregunta de entrevista profesional en español.
-        Esta es la pregunta número {current_q + 1} de {session['total_questions']}.
-        
-        La pregunta debe:
-        1. Ser relevante para una entrevista de trabajo
-        2. Enfocarse en evaluar competencias profesionales, habilidades o experiencia
-        3. Ser clara y específica
-        4. Estar formulada en español
-        
-        Responde SOLO con la pregunta, sin ninguna introducción ni explicación adicional."""
-
-        generated_question = await gemini_handler.get_answer("", prompt)
+        # Generar pregunta usando Gemini (vía QuestionGenerator). Si Gemini falla, lanzará GeminiGenerationError.
+        questions = question_generator.generate_interview_questions(num_questions=1)
+        generated_question = questions[0] if questions else "Cuéntame sobre tu experiencia profesional."
         
         return JSONResponse({
             "completed": False,
             "question_number": current_q + 1,
             "total_questions": session["total_questions"],
-            "question_text": generated_question.strip()
+            "question_text": generated_question
         })
         
+    except GeminiGenerationError as ge:
+        # Respuesta explícita de error si Gemini no pudo generar la pregunta
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "No fue posible generar la pregunta con Gemini",
+                "details": str(ge)
+            }
+        )
     except Exception as e:
         print(f"Error generating question: {str(e)}")
-        default_questions = [
-            "¿Cuál consideras que es tu principal fortaleza profesional?",
-            "Describe una situación laboral desafiante y cómo la resolviste.",
-            "¿Qué te motiva profesionalmente?",
-            "¿Cómo manejas situaciones de presión en el trabajo?",
-            "¿Cuál ha sido tu mayor logro profesional hasta ahora?"
-        ]
+        # En casos no relacionados con Gemini devolvemos fallback
         return JSONResponse({
             "completed": False,
             "question_number": current_q + 1,
             "total_questions": session["total_questions"],
-            "question_text": default_questions[current_q % len(default_questions)]
+            "question_text": question_generator._get_fallback_questions(1)[0]
         })
 
 @app.post("/api/interview/answer")

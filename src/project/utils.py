@@ -1,3 +1,7 @@
+"""
+DEPRECATED VERSION -> CAN BE REMOVED
+"""
+
 from dotenv import load_dotenv
 from google.genai import types
 import os

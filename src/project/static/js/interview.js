@@ -52,7 +52,7 @@ const InterviewChatbot = () => {
     const [interviewStarted, setInterviewStarted] = useState(false);
     const [sessionId, setSessionId] = useState(null);
     const [questionCount, setQuestionCount] = useState(0);
-    const [totalQuestions, setTotalQuestions] = useState(2); // Match backend default
+    const [totalQuestions, setTotalQuestions] = useState(4); // Match backend default
     const messagesEndRef = useRef(null);
 
 
@@ -70,7 +70,7 @@ const InterviewChatbot = () => {
           const response = await fetch('/api/interview/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ total_questions: 2 })
+            body: JSON.stringify({ total_questions: 4 })
           });
           const data = await response.json();
           setSessionId(data.session_id);
@@ -173,32 +173,48 @@ const InterviewChatbot = () => {
         }
     };
         
+    
     const generateNextQuestion = async (sid = sessionId) => {
-        // Solo generar preguntas si no hemos alcanzado el total
         if (questionCount >= totalQuestions) {
             console.log('No generar más preguntas - entrevista completada');
             return;
         }
-        
+
         setIsGenerating(true);
         try {
             console.log('Solicitando siguiente pregunta...');
             const response = await fetch(`/api/interview/question/${sid}`);
+
+            // Si el backend devolvió 500 con detalles sobre Gemini, mostramos ese detalle al usuario
             if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
+                // Intentar parsear JSON para extraer detalles de error
+                let errText = `Error HTTP: ${response.status}`;
+                try {
+                    const errData = await response.json();
+                    if (errData && errData.details) {
+                        errText = `No fue posible generar la pregunta: ${errData.details}`;
+                    } else if (errData && errData.error) {
+                        errText = `Error: ${errData.error}`;
+                    }
+                } catch (e) {
+                    // no JSON, mantenemos errText
+                }
+
+                const errorMsg = {
+                    type: 'bot',
+                    text: errText,
+                    timestamp: new Date(),
+                    isError: true
+                };
+                setMessages(prev => [...prev, errorMsg]);
+                return;
             }
-            
+
             const data = await response.json();
             console.log('Datos de pregunta recibidos:', data);
-            
+
             if (data.completed) {
-                console.log('El backend indica que la entrevista está completada');
-                
-                // Finalizar la sesión
-                await fetch(`/api/interview/session/${sessionId}`, {
-                    method: 'DELETE'
-                });
-                
+                await fetch(`/api/interview/session/${sessionId}`, { method: 'DELETE' });
                 const finalMsg = {
                     type: 'bot',
                     text: data.message || '¡Entrevista completada! Gracias por participar.',
@@ -209,7 +225,7 @@ const InterviewChatbot = () => {
                 setQuestionCount(totalQuestions);
                 return;
             }
-            
+
             const question = {
                 type: 'bot',
                 text: data.question_text,
@@ -217,7 +233,7 @@ const InterviewChatbot = () => {
                 questionNumber: data.question_number
             };
             setMessages(prev => [...prev, question]);
-            
+
         } catch (error) {
             console.error('Error al generar pregunta:', error);
             const errorMsg = {
@@ -231,8 +247,6 @@ const InterviewChatbot = () => {
             setIsGenerating(false);
         }
     };
-
-
 
     const handleKeyPress = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
