@@ -35,8 +35,7 @@
 ---
 
 ## Análisis de respuestas
-- [ ] Definir métricas automáticas de calidad (BLEU, ROUGE, BERTScore)  
-- [ ] Implementar análisis semántico (relevancia de la respuesta)  
+- [x] Definir métricas automáticas de calidad (BLEU, ROUGE, BERTScore)  
 - [ ] Sistema de *feedback automatizado* al usuario  
   > “Tu respuesta cubre bien el concepto, pero podrías desarrollar más el ejemplo.”  
 - [ ] (Opcional) *Evaluation LLM* o clasificador ligero para puntuar respuestas  
@@ -56,13 +55,13 @@
 
 ### Interfaz y experiencia de usuario
 - [x] Creación de interfaz conversacional (Streamlit / Gradio / React + FastAPI)  
-- [ ] Visualización de estadísticas del usuario y feedback  
+- [x] Visualización de estadísticas del usuario y feedback  
 - [ ] (Opcional) Soporte multilingüe (ES / EN)  
 
 ### Extensiones 
 - [x] Integración con vector DB + embeddings propios  
 - [ ] Dataset especializado en entrevistas reales  
-- [ ] Sistema de *auto-evaluación final* con puntaje (claridad, estructura, tono)  
+- [x] Sistema de *auto-evaluación final* con puntaje (claridad, estructura, tono)  
 
 
 # MODELOS PROBADOS

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resultados de Entrevista</title>
+
+    <!-- React & Babel (CDN) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        .metric-card {
+            transition: transform .2s
+        }
+
+        .metric-card:hover {
+            transform: translateY(-4px)
+        }
+    </style>
+</head>
+
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-4">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // ---------- 1. IMPORT CORRECTO ----------
+        const {useState} = React;   // ← ¡¡CORREGIDO!!
+
+        const MetricCard = ({title, value, color, desc}) => (
+            <div className={`metric-card bg-white rounded-xl shadow-lg p-6 border-l-4 ${color}`}>
+                <h3 className="text-sm font-medium text-gray-600">{title}</h3>
+                <p className="text-3xl font-bold mt-2">{value}</p>
+                {desc && <p className="text-xs text-gray-500 mt-1">{desc}</p>}
+            </div>
+        );
+
+        const ResultsPage = ({data}) => {
+            const {bleu, rouge, bertscore, answers, total_questions} = data;
+
+            return (
+                <div className="max-w-5xl mx-auto">
+                    <div className="text-center mb-8">
+                        <h1 className="text-4xl font-bold text-gray-800">Resultados de la Entrevista</h1>
+                        <p className="text-gray-600 mt-2">Evaluación automática con métricas NLP</p>
+                    </div>
+
+                    {/* Métricas principales */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                        <MetricCard title="BLEU" value={bleu} color="border-blue-500" desc="Similitud léxica" />
+                        <MetricCard title="ROUGE‑L" value={rouge.rougeL} color="border-green-500" desc="Secuencias más largas" />
+                        <MetricCard title="BERTScore (F1)" value={bertscore} color="border-purple-500" desc="Similitud semántica" />
+                    </div>
+
+                    {/* Detalle ROUGE */}
+                    <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+                        <h2 className="text-xl font-semibold mb-4">Detalles ROUGE</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                            {Object.entries(rouge).map(([k, v]) => (
+                                <div key={k} className="bg-gray-50 rounded-lg p-3">
+                                    <p className="text-xs text-gray-600 uppercase">{k}</p>
+                                    <p className="text-lg font-bold text-gray-800">{v}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Respuestas */}
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                        <h2 className="text-xl font-semibold mb-4">
+                            Respuestas Completas ({total_questions})
+                        </h2>
+                        <div className="space-y-4">
+                            {answers.map((a, i) => (
+                                <details key={i} className="border rounded-lg p-4 bg-gray-50">
+                                    <summary className="font-medium cursor-pointer text-indigo-700">
+                                        Pregunta {a.question_number}: {a.question.substring(0, 80)}...
+                                    </summary>
+                                    <div className="mt-3 pl-4 border-l-2 border-indigo-300">
+                                        <p className="text-sm text-gray-700">
+                                            <strong>Respuesta:</strong> {a.answer}
+                                        </p>
+                                    </div>
+                                </details>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="text-center mt-8">
+                        <a href="/" className="inline-block px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition">
+                            Volver al inicio
+                        </a>
+                    </div>
+                </div>
+            );
+        };
+
+        // ---------- 2. JSON SEGURO ----------
+        const rawData = {{data | tojson | safe }};
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ResultsPage data={rawData} />);
+    </script>
+</body>
+
+</html>
