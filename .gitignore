@@ -209,4 +209,6 @@ __marimo__/
 
 /src/database/train-v1.1.json
 /src/database/dev-v1.1.json
-/src/database/chroma_db
+/src/database/chroma_db_*/
+/src/database/chroma_db/
+

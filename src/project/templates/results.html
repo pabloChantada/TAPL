@@ -29,8 +29,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // ---------- 1. IMPORT CORRECTO ----------
-        const {useState} = React;   // ← ¡¡CORREGIDO!!
+        const {useState} = React;
 
         const MetricCard = ({title, value, color, desc}) => (
             <div className={`metric-card bg-white rounded-xl shadow-lg p-6 border-l-4 ${color}`}>
@@ -41,13 +40,18 @@
         );
 
         const ResultsPage = ({data}) => {
-            const {bleu, rouge, bertscore, answers, total_questions} = data;
+            const {bleu, rouge, bertscore, answers, total_questions, dataset_type} = data;
 
             return (
                 <div className="max-w-5xl mx-auto">
                     <div className="text-center mb-8">
                         <h1 className="text-4xl font-bold text-gray-800">Resultados de la Entrevista</h1>
                         <p className="text-gray-600 mt-2">Evaluación automática con métricas NLP</p>
+                        {dataset_type && (
+                            <div className="inline-block mt-3 px-4 py-2 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium">
+                                Dataset: {dataset_type.toUpperCase()}
+                            </div>
+                        )}
                     </div>
 
                     {/* Métricas principales */}
@@ -100,7 +104,6 @@
             );
         };
 
-        // ---------- 2. JSON SEGURO ----------
         const rawData = {{data | tojson | safe }};
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<ResultsPage data={rawData} />);

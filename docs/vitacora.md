@@ -39,13 +39,13 @@
 - [ ] Sistema de *feedback automatizado* al usuario  
   > “Tu respuesta cubre bien el concepto, pero podrías desarrollar más el ejemplo.”  
 - [ ] (Opcional) *Evaluation LLM* o clasificador ligero para puntuar respuestas  
-
+- [ ] Respuesta del usuario vs respuesta del llm 
 ---
 
 ## A FUTURO
 ### Agentificación y escalabilidad
-- [ ] Agentes por dominio (matemáticas, historia, etc.) con datasets o contextos propios  
-- [ ] Memoria de usuario (nivel, historial de respuestas, feedback)  
+- [x] Agentes por dominio (matemáticas, historia, etc.) con datasets o contextos propios  
+- [x] Memoria de usuario (nivel, historial de respuestas, feedback)  
 - [ ] Control dinámico de dificultad de preguntas  
 - [ ] Fine-tuning ligero (LoRA / QLoRA) sobre dataset propio de entrevistas  
 

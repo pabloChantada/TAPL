@@ -1,3 +1,4 @@
+
 const { useState, useEffect, useRef } = React;
 
 // Iconos SVG simples
@@ -53,6 +54,8 @@ const InterviewChatbot = () => {
     const [sessionId, setSessionId] = useState(null);
     const [questionCount, setQuestionCount] = useState(0);
     const [totalQuestions, setTotalQuestions] = useState(2);
+    const [selectedDataset, setSelectedDataset] = useState('squad');
+    const [datasets, setDatasets] = useState([]);
     const messagesEndRef = useRef(null);
 
     const scrollToBottom = () => {
@@ -63,27 +66,45 @@ const InterviewChatbot = () => {
         scrollToBottom();
     }, [messages]);
 
+    useEffect(() => {
+        // Cargar datasets disponibles al montar el componente
+        fetch('/api/datasets')
+            .then(res => res.json())
+            .then(data => setDatasets(data.datasets))
+            .catch(err => console.error('Error cargando datasets:', err));
+    }, []);
+
     const startInterview = async () => {
         try {
             const response = await fetch('/api/interview/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ total_questions: 2 })
+                body: JSON.stringify({
+                    total_questions: 2,
+                    dataset_type: selectedDataset
+                })
             });
             const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Error al iniciar entrevista');
+            }
+
             setSessionId(data.session_id);
             setTotalQuestions(data.total_questions);
             setInterviewStarted(true);
+
+            const datasetName = datasets.find(d => d.id === selectedDataset)?.name || selectedDataset;
             const welcomeMsg = {
                 type: 'bot',
-                text: '¡Hola! Soy tu asistente de entrevista. Te haré una serie de preguntas para analizar tus conocimientos.',
+                text: `¡Hola! Soy tu asistente de entrevista. Te haré una serie de preguntas basadas en el dataset ${datasetName} para analizar tus conocimientos.`,
                 timestamp: new Date()
             };
             setMessages([welcomeMsg]);
             setTimeout(() => generateNextQuestion(data.session_id), 1500);
         } catch (error) {
             console.error('Error al iniciar entrevista:', error);
-            alert('Error al iniciar la entrevista. Por favor, intenta de nuevo.');
+            alert(`Error al iniciar la entrevista: ${error.message}`);
         }
     };
 
@@ -124,7 +145,6 @@ const InterviewChatbot = () => {
             const data = await response.json();
             console.log('Respuesta del servidor:', data);
 
-            // Actualizar contador de pregunta después de la respuesta
             const newQuestionCount = currentQuestion.questionNumber;
             setQuestionCount(newQuestionCount);
 
@@ -147,12 +167,10 @@ const InterviewChatbot = () => {
                 };
                 setMessages(prev => [...prev, finalMsg]);
 
-                // Redirigir a resultados después de 2 segundos
                 setTimeout(() => {
                     window.location.href = `/results/${sessionId}`;
                 }, 2000);
             } else {
-                // Solo generar siguiente pregunta si NO hemos completado
                 setTimeout(() => generateNextQuestion(), 800);
             }
 
@@ -171,7 +189,6 @@ const InterviewChatbot = () => {
     };
 
     const generateNextQuestion = async (sid = sessionId) => {
-        // Verificar antes de generar
         if (questionCount >= totalQuestions) {
             console.log('No generar más preguntas - entrevista completada');
             return;
@@ -298,6 +315,49 @@ const InterviewChatbot = () => {
                                     tus competencias y experiencia. Tómate tu tiempo para responder con detalle.
                                 </p>
                             </div>
+
+                            {/* Selector de Dataset */}
+                            <div className="w-full max-w-lg space-y-3">
+                                <label className="block text-sm font-semibold text-gray-700 text-center">
+                                    Selecciona el tipo de preguntas
+                                </label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {datasets.map((dataset) => (
+                                        <button
+                                            key={dataset.id}
+                                            onClick={() => setSelectedDataset(dataset.id)}
+                                            className={`p-4 rounded-xl border-2 transition-all text-left ${selectedDataset === dataset.id
+                                                    ? 'border-indigo-600 bg-indigo-50 shadow-md'
+                                                    : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow'
+                                                }`}
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${selectedDataset === dataset.id
+                                                        ? 'border-indigo-600 bg-indigo-600'
+                                                        : 'border-gray-300'
+                                                    }`}>
+                                                    {selectedDataset === dataset.id && (
+                                                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                        </svg>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <h3 className={`font-semibold ${selectedDataset === dataset.id ? 'text-indigo-900' : 'text-gray-800'
+                                                        }`}>
+                                                        {dataset.name}
+                                                    </h3>
+                                                    <p className={`text-sm mt-1 ${selectedDataset === dataset.id ? 'text-indigo-700' : 'text-gray-600'
+                                                        }`}>
+                                                        {dataset.description}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
                             <button
                                 onClick={startInterview}
                                 className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:scale-105 transition-all"
@@ -406,3 +466,4 @@ const InterviewChatbot = () => {
 // Renderizar la aplicación
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<InterviewChatbot />);
+

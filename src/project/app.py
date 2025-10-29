@@ -26,8 +26,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-question_generator = QuestionGenerator()
+# Inicializar con dataset por defecto
+question_generator = QuestionGenerator(dataset_type="squad")
 
 # Mount static files
 app.mount(
@@ -47,6 +47,7 @@ class Question(BaseModel):
 class InterviewSession(BaseModel):
     session_id: Optional[str] = None
     total_questions: int = TOTAL_QUESTIONS
+    dataset_type: str = "natural_questions"
 
 
 class UserAnswer(BaseModel):
@@ -67,16 +68,60 @@ async def root(request: Request):
     return templates.TemplateResponse(name="index.html", context={"request": request})
 
 
+@app.get("/api/datasets")
+async def get_available_datasets():
+    """Endpoint para obtener los datasets disponibles"""
+    return JSONResponse(
+        {
+            "datasets": [
+                {
+                    "id": "squad",
+                    "name": "SQuAD",
+                    "description": "Stanford Question Answering Dataset",
+                },
+                {
+                    "id": "natural_questions",
+                    "name": "Natural Questions",
+                    "description": "Preguntas reales de Google Search",
+                },
+                {
+                    "id": "eli5",
+                    "name": "ELI5",
+                    "description": "Explain Like I'm 5 (Reddit)",
+                },
+                {
+                    "id": "hotpotqa",
+                    "name": "HotpotQA",
+                    "description": "Preguntas multi-hop complejas",
+                },
+            ]
+        }
+    )
+
+
 @app.post("/api/interview/start")
 async def start_interview(session: InterviewSession):
     import uuid
 
     session_id = str(uuid.uuid4())
 
+    # Cambiar el dataset si es diferente al actual
+    if session.dataset_type != question_generator.dataset_type:
+        try:
+            question_generator.set_dataset(session.dataset_type)
+        except Exception as e:
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": f"No se pudo cargar el dataset '{session.dataset_type}': {str(e)}"
+                },
+            )
+
     interview_sessions[session_id] = {
         "total_questions": session.total_questions,
         "current_question": 0,
         "started_at": str(os.times()),
+        "dataset_type": session.dataset_type,
     }
 
     interview_answers[session_id] = []
@@ -86,6 +131,7 @@ async def start_interview(session: InterviewSession):
             "session_id": session_id,
             "message": "Sesión de entrevista iniciada correctamente",
             "total_questions": session.total_questions,
+            "dataset_type": session.dataset_type,
         }
     )
 
@@ -134,7 +180,7 @@ async def get_next_question(session_id: str):
                 "completed": False,
                 "question_number": current_q + 1,
                 "total_questions": session["total_questions"],
-                "question_text": question_generator._get_fallback_questions(1)[0],
+                "question_text": "Cuéntame sobre tu experiencia profesional.",
             }
         )
 
@@ -186,6 +232,7 @@ async def get_results(session_id: str):
         {
             "session_id": session_id,
             "total_questions": interview_sessions[session_id]["total_questions"],
+            "dataset_type": interview_sessions[session_id].get("dataset_type", "squad"),
             "answers": answers,
         }
     )
@@ -215,10 +262,12 @@ async def show_results_page(request: Request, session_id: str):
         k: round(v, 4) for k, v in metrics.rouge(predictions, references).items()
     }
     bertscore_avg = round(metrics.bertscore(predictions, references, lang="es"), 4)
+
     # Preparar data para el template
     data = {
         "session_id": session_id,
         "total_questions": len(answers),
+        "dataset_type": interview_sessions[session_id].get("dataset_type", "squad"),
         "bleu": bleu_score,
         "rouge": rouge_scores,
         "bertscore": bertscore_avg,
