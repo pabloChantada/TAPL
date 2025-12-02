@@ -27,11 +27,12 @@
 
 <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-4">
     <div id="root"></div>
+    <script id="initial-data" type="application/json">{{ data | tojson | safe }}</script>
 
     <script type="text/babel">
-        const {useState} = React;
+        const { useState } = React;
 
-        const MetricCard = ({title, value, color, desc}) => (
+        const MetricCard = ({ title, value, color, desc }) => (
             <div className={`metric-card bg-white rounded-xl shadow-lg p-6 border-l-4 ${color}`}>
                 <h3 className="text-sm font-medium text-gray-600">{title}</h3>
                 <p className="text-3xl font-bold mt-2">{value}</p>
@@ -39,8 +40,8 @@
             </div>
         );
 
-        const ResultsPage = ({data}) => {
-            const {bleu, rouge, bertscore, answers, total_questions, dataset_type} = data;
+        const ResultsPage = ({ data }) => {
+            const { bleu, rouge, bertscore, answers, total_questions, dataset_type } = data;
 
             return (
                 <div className="max-w-5xl mx-auto">
@@ -83,12 +84,19 @@
                             {answers.map((a, i) => (
                                 <details key={i} className="border rounded-lg p-4 bg-gray-50">
                                     <summary className="font-medium cursor-pointer text-indigo-700">
-                                        Pregunta {a.question_number}: {a.question.substring(0, 80)}...
+                                        Pregunta {a.question_number}: {a.question}
                                     </summary>
                                     <div className="mt-3 pl-4 border-l-2 border-indigo-300">
                                         <p className="text-sm text-gray-700">
-                                            <strong>Respuesta:</strong> {a.answer}
+                                            <strong>Tu respuesta:</strong> {a.answer}
                                         </p>
+
+                                        {a.correct_answer && (
+                                            <p className="text-sm text-green-700 mt-2">
+                                                <strong>Respuesta correcta:</strong> {a.correct_answer}
+                                            </p>
+                                        )}
+
                                     </div>
                                 </details>
                             ))}
@@ -103,8 +111,7 @@
                 </div>
             );
         };
-
-        const rawData = {{data | tojson | safe }};
+        const rawData = JSON.parse(document.getElementById('initial-data').textContent);
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<ResultsPage data={rawData} />);
     </script>

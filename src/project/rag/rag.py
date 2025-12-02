@@ -9,6 +9,7 @@ from .utils.dataset_readers import (
     reader_SQUAD,
     reader_eli5,
     reader_hotpotqa,
+    reader_coachquant
 )
 
 load_dotenv()
@@ -86,6 +87,8 @@ class RAG:
             return reader_eli5(max_texts, sample_random)
         elif self.dataset_type == "hotpotqa":
             return reader_hotpotqa(max_texts, sample_random)
+        elif self.dataset_type == "coachquant":
+            return reader_coachquant(max_texts=max_texts, sample_random=sample_random)
         else:
             raise ValueError(f"Tipo de dataset no soportado: {self.dataset_type}")
 
