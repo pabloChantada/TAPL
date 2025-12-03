@@ -13,7 +13,6 @@ from dotenv import load_dotenv
 from .metrics.metrics import Metrics
 
 
-TOTAL_QUESTIONS = 2
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv()
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
@@ -50,7 +49,7 @@ class Question(BaseModel):
 
 class InterviewSession(BaseModel):
     session_id: Optional[str] = None
-    total_questions: int = TOTAL_QUESTIONS
+    total_questions: int = 2 # Default to 2 questions
     dataset_type: str = "natural_questions"
 
 
@@ -82,21 +81,6 @@ async def get_available_datasets():
                     "id": "squad",
                     "name": "SQuAD",
                     "description": "Stanford Question Answering Dataset",
-                },
-                {
-                    "id": "natural_questions",
-                    "name": "Natural Questions",
-                    "description": "Preguntas reales de Google Search",
-                },
-                {
-                    "id": "eli5",
-                    "name": "ELI5",
-                    "description": "Explain Like I'm 5 (Reddit)",
-                },
-                {
-                    "id": "hotpotqa",
-                    "name": "HotpotQA",
-                    "description": "Preguntas multi-hop complejas",
                 },
                 {
                     "id": "coachquant",
@@ -257,43 +241,85 @@ async def get_results(session_id: str):
 
 @app.get("/results/{session_id}", response_class=HTMLResponse)
 async def show_results_page(request: Request, session_id: str):
+    print(f"[DEBUG] Cargando resultados para session_id: {session_id}")
+    print(f"[DEBUG] Sesiones activas: {list(interview_sessions.keys())}")
+    
     if session_id not in interview_sessions:
+        print(f"[ERROR] Sesión {session_id} no encontrada")
         return HTMLResponse(content="<h1>Sesión no encontrada</h1>", status_code=404)
 
-    answers = interview_answers.get(session_id, [])
+    answers = interview_answers. get(session_id, [])
+    print(f"[DEBUG] Número de respuestas encontradas: {len(answers)}")
+    
     if not answers:
         return HTMLResponse(
             content="<h1>No hay respuestas para evaluar</h1>", status_code=400
         )
 
-    # Extraer respuestas y preguntas esperadas (fallback si no hay preguntas guardadas)
+    # Extraer respuestas del usuario y respuestas correctas
     predictions = [ans["answer"] for ans in answers]
-    references = [
-    ans["correct_answer"] for ans in answers
-    ]
+    
+    # Manejar correctamente el caso donde correct_answer puede no existir
+    references = []
+    for ans in answers:
+        correct = ans. get("correct_answer", "")
+        if not correct:
+            # Fallback: buscar en interview_questions
+            q_num = ans["question_number"]
+            if session_id in interview_questions and q_num in interview_questions[session_id]:
+                correct = interview_questions[session_id][q_num]. get("correct_answer", "No disponible")
+            else:
+                correct = "No disponible"
+        references.append(correct)
 
     # Calcular métricas
-    metrics = Metrics()
-    bleu_score = round(metrics.bleu(predictions, references), 4)
-    rouge_scores = {
-        k: round(v, 4) for k, v in metrics.rouge(predictions, references).items()
-    }
-    bertscore_avg = round(metrics.bertscore(predictions, references, lang="es"), 4)
+    try:
+        metrics = Metrics()
+        bleu_score = round(float(metrics.bleu(predictions, references)), 4)
+        
+        # Convertir valores NumPy a float nativos de Python
+        rouge_raw = metrics.rouge(predictions, references)
+        rouge_scores = {
+            k: round(float(v), 4) for k, v in rouge_raw.items()
+        }
+        
+        bertscore_avg = round(float(metrics.bertscore(predictions, references, lang="es")), 4)
+        
+        print(f"[DEBUG] BLEU: {bleu_score}")
+        print(f"[DEBUG] ROUGE: {rouge_scores}")
+        print(f"[DEBUG] BERTScore: {bertscore_avg}")
+        
+    except Exception as e:
+        print(f"[ERROR] Error calculating metrics: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Valores por defecto en caso de error
+        bleu_score = 0.0
+        rouge_scores = {"rouge1": 0.0, "rouge2": 0.0, "rougeL": 0.0, "rougeLsum": 0.0}
+        bertscore_avg = 0.0
 
-    # Preparar data para el template
+    # Preparar data para el template - asegurando que correct_answer esté presente
+    enriched_answers = []
+    for i, ans in enumerate(answers):
+        enriched_ans = ans.copy()
+        if "correct_answer" not in enriched_ans or not enriched_ans["correct_answer"]:
+            enriched_ans["correct_answer"] = references[i]
+        enriched_answers.append(enriched_ans)
+
     data = {
         "session_id": session_id,
         "total_questions": len(answers),
-        "dataset_type": interview_sessions[session_id].get("dataset_type", "squad"),
+        "dataset_type": interview_sessions[session_id]. get("dataset_type", "squad"),
         "bleu": bleu_score,
         "rouge": rouge_scores,
         "bertscore": bertscore_avg,
-        "answers": answers,
+        "answers": enriched_answers,
     }
+
+    print(f"[DEBUG] Data preparada para template: {data}")
 
     context = {"request": request, "data": data}
     return templates.TemplateResponse("results.html", context)
-
 
 @app.delete("/api/interview/session/{session_id}")
 async def end_interview(session_id: str):

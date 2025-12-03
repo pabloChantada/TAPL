@@ -1,7 +1,6 @@
-
 const { useState, useEffect, useRef } = React;
 
-// Iconos SVG simples
+// Iconos SVG
 const MessageSquareIcon = () => (
     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
@@ -45,6 +44,69 @@ const CircleIcon = () => (
     </svg>
 );
 
+// Icono de reiniciar
+const RefreshIcon = () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <polyline points="1 20 1 14 7 14"></polyline>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+    </svg>
+);
+
+// Icono de información
+const InfoIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="16" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+    </svg>
+);
+
+// Componente Tooltip
+const Tooltip = ({ text, children }) => {
+    const [show, setShow] = useState(false);
+
+    return (
+        <div className="relative inline-block">
+            <button
+                onMouseEnter={() => setShow(true)}
+                onMouseLeave={() => setShow(false)}
+                onClick={() => setShow(!show)}
+                className="ml-1 text-indigo-500 hover:text-indigo-700 cursor-help inline-flex"
+            >
+                <InfoIcon />
+            </button>
+            {show && (
+                <div className="absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl">
+                    {text}
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                        <div className="border-8 border-transparent border-t-gray-900"></div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ✅ MEJORADO: Indicador de carga con mensaje dinámico
+const LoadingIndicator = ({ message = "Gemini está pensando..." }) => (
+    <div className="flex gap-3 animate-fade-in">
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+            <BotIcon />
+        </div>
+        <div className="bg-white border border-indigo-200 rounded-2xl p-4 shadow-lg">
+            <div className="flex items-center gap-3">
+                <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
+                <span className="text-sm text-indigo-700 font-medium">{message}</span>
+            </div>
+        </div>
+    </div>
+);
+
 // Componente principal
 const InterviewChatbot = () => {
     const [messages, setMessages] = useState([]);
@@ -55,7 +117,9 @@ const InterviewChatbot = () => {
     const [questionCount, setQuestionCount] = useState(0);
     const [totalQuestions, setTotalQuestions] = useState(2);
     const [selectedDataset, setSelectedDataset] = useState('squad');
+    const [numQuestions, setNumQuestions] = useState(2); // Control dinámico
     const [datasets, setDatasets] = useState([]);
+    const [loadingMessage, setLoadingMessage] = useState(''); // mensaje dinámico
     const messagesEndRef = useRef(null);
 
     const scrollToBottom = () => {
@@ -67,26 +131,51 @@ const InterviewChatbot = () => {
     }, [messages]);
 
     useEffect(() => {
-        // Cargar datasets disponibles al montar el componente
         fetch('/api/datasets')
             .then(res => res.json())
             .then(data => setDatasets(data.datasets))
             .catch(err => console.error('Error cargando datasets:', err));
     }, []);
 
+    // Función para reiniciar entrevista
+    const restartInterview = async () => {
+        if (sessionId) {
+            try {
+                await fetch(`/api/interview/session/${sessionId}`, {
+                    method: 'DELETE'
+                });
+            } catch (error) {
+                console.error('Error eliminando sesión:', error);
+            }
+        }
+
+        // Reset de estados
+        setMessages([]);
+        setCurrentInput('');
+        setIsGenerating(false);
+        setInterviewStarted(false);
+        setSessionId(null);
+        setQuestionCount(0);
+        setTotalQuestions(2);
+        setNumQuestions(2);
+    };
+
     const startInterview = async () => {
         try {
+            setLoadingMessage('Inicializando entrevista... ');
+            setIsGenerating(true);
+
             const response = await fetch('/api/interview/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    total_questions: 2,
+                    total_questions: numQuestions, 
                     dataset_type: selectedDataset
                 })
             });
             const data = await response.json();
 
-            if (!response.ok) {
+            if (! response.ok) {
                 throw new Error(data.error || 'Error al iniciar entrevista');
             }
 
@@ -97,14 +186,16 @@ const InterviewChatbot = () => {
             const datasetName = datasets.find(d => d.id === selectedDataset)?.name || selectedDataset;
             const welcomeMsg = {
                 type: 'bot',
-                text: `¡Hola! Soy tu asistente de entrevista. Te haré una serie de preguntas basadas en el dataset ${datasetName} para analizar tus conocimientos.`,
+                text: `¡Hola! Soy tu asistente de entrevista. Te haré ${data.total_questions} preguntas basadas en el dataset ${datasetName} para analizar tus conocimientos.`,
                 timestamp: new Date()
             };
             setMessages([welcomeMsg]);
+            setIsGenerating(false);
             setTimeout(() => generateNextQuestion(data.session_id), 800);
         } catch (error) {
             console.error('Error al iniciar entrevista:', error);
             alert(`Error al iniciar la entrevista: ${error.message}`);
+            setIsGenerating(false);
         }
     };
 
@@ -112,7 +203,6 @@ const InterviewChatbot = () => {
         if (!currentInput.trim() || isGenerating) return;
 
         const currentQuestion = messages[messages.length - 1];
-        console.log('Enviando respuesta para pregunta:', currentQuestion.questionNumber);
 
         const userMessage = {
             type: 'user',
@@ -125,6 +215,7 @@ const InterviewChatbot = () => {
         const answerText = currentInput;
         setCurrentInput('');
         setIsGenerating(true);
+        setLoadingMessage('Procesando tu respuesta... '); 
 
         try {
             const response = await fetch('/api/interview/answer', {
@@ -143,8 +234,6 @@ const InterviewChatbot = () => {
             }
 
             const data = await response.json();
-            console.log('Respuesta del servidor:', data);
-
             const newQuestionCount = currentQuestion.questionNumber;
             setQuestionCount(newQuestionCount);
 
@@ -157,11 +246,9 @@ const InterviewChatbot = () => {
             setMessages(prev => [...prev, acknowledgment]);
 
             if (newQuestionCount >= totalQuestions) {
-                console.log('Entrevista completada en el frontend');
-
                 const finalMsg = {
                     type: 'bot',
-                    text: '¡Excelente! Hemos completado la entrevista. Redirigiendo a resultados...',
+                    text: '¡Excelente! Hemos completado la entrevista.  Redirigiendo a resultados...',
                     timestamp: new Date(),
                     isFinal: true
                 };
@@ -172,14 +259,13 @@ const InterviewChatbot = () => {
                 }, 2000);
             } else {
                 setTimeout(() => generateNextQuestion(sessionId), 800);
-
             }
 
         } catch (error) {
             console.error('Error al guardar respuesta:', error);
             const errorMsg = {
                 type: 'bot',
-                text: 'Error al procesar tu respuesta. Por favor, intenta de nuevo.',
+                text: 'Error al procesar tu respuesta.  Por favor, intenta de nuevo.',
                 timestamp: new Date(),
                 isError: true
             };
@@ -191,13 +277,13 @@ const InterviewChatbot = () => {
 
     const generateNextQuestion = async (sid) => {
         if (questionCount >= totalQuestions) {
-            console.log('No generar más preguntas - entrevista completada');
             return;
         }
 
         setIsGenerating(true);
+        setLoadingMessage('Gemini está generando tu siguiente pregunta... '); 
+
         try {
-            console.log('Solicitando siguiente pregunta...');
             const response = await fetch(`/api/interview/question/${sid}`);
 
             if (!response.ok) {
@@ -210,7 +296,7 @@ const InterviewChatbot = () => {
                         errText = `Error: ${errData.error}`;
                     }
                 } catch (e) {
-                    // no JSON, mantenemos errText
+                    // no JSON
                 }
 
                 const errorMsg = {
@@ -224,12 +310,11 @@ const InterviewChatbot = () => {
             }
 
             const data = await response.json();
-            console.log('Datos de pregunta recibidos:', data);
 
             if (data.completed) {
                 const finalMsg = {
                     type: 'bot',
-                    text: '¡Excelente! Redirigiendo a resultados...',
+                    text: '¡Excelente!  Redirigiendo a resultados...',
                     timestamp: new Date(),
                     isFinal: true
                 };
@@ -275,12 +360,25 @@ const InterviewChatbot = () => {
             <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ height: '90vh' }}>
                 {/* Header */}
                 <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6">
-                    <div className="flex items-center gap-3">
-                        <MessageSquareIcon />
-                        <div>
-                            <h1 className="text-2xl font-bold">Entrevista Interactiva</h1>
-                            <p className="text-indigo-100 text-sm">Sistema de evaluación por competencias</p>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <MessageSquareIcon />
+                            <div>
+                                <h1 className="text-2xl font-bold">Entrevista Interactiva</h1>
+                                <p className="text-indigo-100 text-sm">Sistema de evaluación por competencias</p>
+                            </div>
                         </div>
+                        {/* Botón reiniciar (solo si la entrevista ya comenzó) */}
+                        {interviewStarted && (
+                            <button
+                                onClick={restartInterview}
+                                className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all text-sm font-medium"
+                                title="Reiniciar entrevista"
+                            >
+                                <RefreshIcon />
+                                Reiniciar
+                            </button>
+                        )}
                     </div>
                     {interviewStarted && (
                         <div className="mt-4 flex items-center gap-2 text-sm">
@@ -302,7 +400,7 @@ const InterviewChatbot = () => {
 
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
-                    {!interviewStarted ? (
+                    {! interviewStarted ? (
                         <div className="flex flex-col items-center justify-center h-full gap-6">
                             <div className="text-center space-y-4">
                                 <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto shadow-lg">
@@ -312,58 +410,83 @@ const InterviewChatbot = () => {
                                     Bienvenido a tu Entrevista
                                 </h2>
                                 <p className="text-gray-600 max-w-md">
-                                    Responderás {totalQuestions} preguntas diseñadas para evaluar
-                                    tus competencias y experiencia. Tómate tu tiempo para responder con detalle.
+                                    Configura tu entrevista seleccionando el número de preguntas y el tipo de dataset.
                                 </p>
                             </div>
 
-                            {/* Selector de Dataset */}
-                            <div className="w-full max-w-lg space-y-3">
-                                <label className="block text-sm font-semibold text-gray-700 text-center">
-                                    Selecciona el tipo de preguntas
-                                </label>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {datasets.map((dataset) => (
-                                        <button
-                                            key={dataset.id}
-                                            onClick={() => setSelectedDataset(dataset.id)}
-                                            className={`p-4 rounded-xl border-2 transition-all text-left ${selectedDataset === dataset.id
-                                                ? 'border-indigo-600 bg-indigo-50 shadow-md'
-                                                : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow'
-                                                }`}
-                                        >
-                                            <div className="flex items-start gap-3">
-                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${selectedDataset === dataset.id
-                                                    ? 'border-indigo-600 bg-indigo-600'
-                                                    : 'border-gray-300'
-                                                    }`}>
-                                                    {selectedDataset === dataset.id && (
-                                                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                        </svg>
-                                                    )}
-                                                </div>
-                                                <div>
-                                                    <h3 className={`font-semibold ${selectedDataset === dataset.id ? 'text-indigo-900' : 'text-gray-800'
+                            {/* Selector de número de preguntas */}
+                            <div className="w-full max-w-lg space-y-4">
+                                <div className="space-y-3">
+                                    <label className="block text-sm font-semibold text-gray-700 text-center">
+                                        ¿Cuántas preguntas quieres responder?
+                                    </label>
+                                    <div className="flex items-center gap-4 justify-center">
+                                        <input
+                                            type="range"
+                                            min="1"
+                                            max="10"
+                                            value={numQuestions}
+                                            onChange={(e) => setNumQuestions(parseInt(e.target.value))}
+                                            className="w-64 h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                        />
+                                        <div className="w-16 h-12 flex items-center justify-center bg-indigo-100 text-indigo-800 rounded-lg font-bold text-xl">
+                                            {numQuestions}
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-gray-500 text-center">
+                                        Desliza para elegir entre 1 y 10 preguntas
+                                    </p>
+                                </div>
+
+                                {/* Selector de Dataset */}
+                                <div className="space-y-3 pt-4 border-t border-gray-200">
+                                    <label className="block text-sm font-semibold text-gray-700 text-center">
+                                        Selecciona el tipo de preguntas
+                                    </label>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {datasets.map((dataset) => (
+                                            <button
+                                                key={dataset.id}
+                                                onClick={() => setSelectedDataset(dataset.id)}
+                                                className={`p-4 rounded-xl border-2 transition-all text-left ${selectedDataset === dataset.id
+                                                    ? 'border-indigo-600 bg-indigo-50 shadow-md'
+                                                    : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow'
+                                                    }`}
+                                            >
+                                                <div className="flex items-start gap-3">
+                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${selectedDataset === dataset.id
+                                                        ? 'border-indigo-600 bg-indigo-600'
+                                                        : 'border-gray-300'
                                                         }`}>
-                                                        {dataset.name}
-                                                    </h3>
-                                                    <p className={`text-sm mt-1 ${selectedDataset === dataset.id ? 'text-indigo-700' : 'text-gray-600'
-                                                        }`}>
-                                                        {dataset.description}
-                                                    </p>
+                                                        {selectedDataset === dataset.id && (
+                                                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                            </svg>
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <h3 className={`font-semibold ${selectedDataset === dataset.id ? 'text-indigo-900' : 'text-gray-800'
+                                                            }`}>
+                                                            {dataset.name}
+                                                        </h3>
+                                                        <p className={`text-sm mt-1 ${selectedDataset === dataset.id ? 'text-indigo-700' : 'text-gray-600'
+                                                            }`}>
+                                                            {dataset.description}
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </button>
-                                    ))}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 
                             <button
                                 onClick={startInterview}
-                                className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:scale-105 transition-all"
+                                disabled={isGenerating}
+                                className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                             >
-                                Comenzar Entrevista
+                                {isGenerating ? 'Iniciando...' : `Comenzar Entrevista con ${numQuestions} pregunta${numQuestions !== 1 ? 's' : ''}`}
                             </button>
                         </div>
                     ) : (
@@ -371,7 +494,7 @@ const InterviewChatbot = () => {
                             {messages.map((msg, idx) => (
                                 <div
                                     key={idx}
-                                    className={`flex gap-3 ${msg.type === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+                                    className={`flex gap-3 ${msg.type === 'user' ?  'flex-row-reverse' : 'flex-row'}`}
                                 >
                                     <div
                                         className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${msg.type === 'user'
@@ -379,7 +502,7 @@ const InterviewChatbot = () => {
                                             : 'bg-gradient-to-br from-indigo-500 to-purple-600'
                                             }`}
                                     >
-                                        {msg.type === 'user' ? <UserIcon /> : <BotIcon />}
+                                        {msg.type === 'user' ?  <UserIcon /> : <BotIcon />}
                                     </div>
                                     <div
                                         className={`max-w-2xl rounded-2xl p-4 shadow-md ${msg.type === 'user'
@@ -387,7 +510,7 @@ const InterviewChatbot = () => {
                                             : msg.isAck
                                                 ? 'bg-green-50 border border-green-200 text-green-800'
                                                 : msg.isFinal
-                                                    ? 'bg-purple-50 border border-purple-200 text-purple-900'
+                                                    ?  'bg-purple-50 border border-purple-200 text-purple-900'
                                                     : 'bg-white border border-gray-200 text-gray-800'
                                             }`}
                                     >
@@ -413,20 +536,8 @@ const InterviewChatbot = () => {
                                     </div>
                                 </div>
                             ))}
-                            {isGenerating && (
-                                <div className="flex gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                                        <BotIcon />
-                                    </div>
-                                    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-md">
-                                        <div className="flex gap-1">
-                                            <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                            <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                            <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+                            {/* Indicador con mensaje dinámico */}
+                            {isGenerating && <LoadingIndicator message={loadingMessage} />}
                             <div ref={messagesEndRef} />
                         </>
                     )}
@@ -447,7 +558,7 @@ const InterviewChatbot = () => {
                             />
                             <button
                                 onClick={handleSubmit}
-                                disabled={!currentInput.trim() || isGenerating}
+                                disabled={! currentInput.trim() || isGenerating}
                                 className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
                             >
                                 <SendIcon />
@@ -467,4 +578,3 @@ const InterviewChatbot = () => {
 // Renderizar la aplicación
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<InterviewChatbot />);
-
