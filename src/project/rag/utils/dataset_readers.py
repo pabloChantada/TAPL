@@ -243,3 +243,53 @@ def reader_hotpotqa(
         return []
 
     return _process_qa_texts(qa_texts, max_texts, sample_random, verbose)
+
+def reader_coachquant(
+    data_path: str = "src/database/coachquant_all.jsonl",
+    max_texts: int | None = None,
+    sample_random: bool = False,
+    verbose: bool = True,
+):
+    """Lee tu dataset scrapeado (JSONL con un objeto por línea)."""
+    import json, os
+    import numpy as np
+
+    if verbose:
+        print("[RAG] Cargando dataset CoachQuant...")
+
+    if not os.path.exists(data_path):
+        if verbose:
+            print(f"[RAG] No existe el archivo: {data_path}")
+        return []
+
+    qa_texts = []
+    with open(data_path, "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                obj = json.loads(line)
+                raw = obj.get("raw", {})
+                question = raw.get("problem text", "") or obj.get("question_text", "")
+                answer = (
+                    raw.get("problem solution", "")
+                    or obj.get("answer_text", "")
+                    or raw.get("valid answer", "")
+                )
+                if question and answer:
+                    qa_texts.append(f"Pregunta: {question}\nRespuesta: {answer}")
+            except Exception as e:
+                if verbose:
+                    print(f"[RAG] Error leyendo línea: {e}")
+
+    total = len(qa_texts)
+    if verbose:
+        print(f"[RAG] Total pares QA leídos: {total}")
+
+    if max_texts and total > max_texts:
+        if sample_random:
+            idx = np.random.choice(total, size=max_texts, replace=False)
+            qa_texts = [qa_texts[i] for i in idx]
+        else:
+            qa_texts = qa_texts[:max_texts]
+    if verbose:
+        print(f"[RAG] Pares QA devueltos: {len(qa_texts)}")
+    return qa_texts

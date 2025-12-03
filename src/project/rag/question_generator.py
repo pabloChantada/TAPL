@@ -23,10 +23,11 @@ class QuestionGenerator:
             print(f"[QuestionGenerator] No se pudo cargar chroma DB en init: {e}")
 
         self.question_template = """
-        Eres un experto examinador. Genera **UNA UNICA PREGUNTA** para evaluar a un usuario.
-        Es un sistema de entrevistas, tu función es devolver **ÚNICAMENTE LA PREGUNTA** dado un contexto.
-        La pregunta no debe superar los 100 caracteres y debe ser en **ESPAÑOL**. El contexto que vas a utilizar es: {context}
-        """
+            Eres un experto examinador. Genera **UNA UNICA PREGUNTA** para evaluar a un usuario.
+            Es un sistema de entrevistas, tu función es devolver **ÚNICAMENTE LA PREGUNTA** dado un contexto.
+            La pregunta no debe superar los 100 caracteres y debe ser en **ESPAÑOL**. El contexto que vas a utilizar es: {context}
+            """
+
 
     def set_dataset(self, dataset_type: str):
         """
@@ -49,17 +50,13 @@ class QuestionGenerator:
     def generate_interview_questions(
         self, num_questions: int = 5, topic: str = ""
     ) -> List[str]:
-        try:
-            contexts: List[str] = []
-            if topic:
-                results = self.rag.search(topic, k=max(num_questions * 2, 5))
-                contexts = [self._extract_text_from_result(r) for r in results]
-            else:
-                contexts = self.rag.read_dataset(
-                    max_texts=num_questions * 4, sample_random=True
-                )
 
-            questions: List[str] = []
+        try:
+            contexts = self.rag.read_dataset(
+                max_texts=num_questions * 4, sample_random=True
+            )
+
+            questions = []
             used_contexts = set()
 
             for context in contexts:
@@ -67,27 +64,23 @@ class QuestionGenerator:
                     break
 
                 snippet = context[:150]
-                context_hash = hash(snippet)
-                if context_hash in used_contexts:
+                if snippet in used_contexts:
                     continue
-                used_contexts.add(context_hash)
+                used_contexts.add(snippet)
 
-                prompt_context = context.replace("\n", " ").strip()[:900]
-                prompt = self.question_template.format(context=prompt_context)
+                # 1. extraer la pregunta real del dataset
+                raw_question = self._extract_dataset_question(context)
 
-                question = self._generate_with_gemini(prompt)
-                if not question:
-                    raise GeminiGenerationError(
-                        "Gemini no devolvió una pregunta válida."
-                    )
-                questions.append(question)
+                # 2. normalizarla con gemini (limpiar latex + traducir)
+                clean_question = self.normalize_question_with_gemini(raw_question)
+
+                questions.append(clean_question)
 
             return questions[:num_questions]
 
-        except GeminiGenerationError:
-            raise
         except Exception as e:
-            print(f"Error generando preguntas (no relacionado con Gemini): {str(e)}")
+            print(f"Error generando preguntas: {str(e)}")
+
 
     def _extract_text_from_result(self, result) -> str:
         if hasattr(result, "page_content"):
@@ -109,6 +102,11 @@ class QuestionGenerator:
 
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel("gemini-2.5-flash")
+            print("\n==============================")
+            print("🧠 PROMPT ENVIADO A GEMINI:")
+            print("==============================")
+            print(prompt)
+            print("==============================\n")
             response = model.generate_content(prompt)
 
             text = response.text.strip() if hasattr(response, "text") else str(response)
@@ -165,3 +163,72 @@ class QuestionGenerator:
                 text = text.rstrip(".") + "?"
         text = text[0].upper() + text[1:] if text else text
         return text
+
+    def _extract_dataset_question(self, text: str) -> str:
+        """
+        Extrae la pregunta desde el formato:
+        'Pregunta: .... \nRespuesta: ...'
+        """
+        if "Pregunta:" in text:
+            try:
+                return text.split("Pregunta:")[1].split("Respuesta:")[0].strip()
+            except:
+                return text.strip()
+        return text.strip()
+
+    def normalize_question_with_gemini(self, raw_question: str) -> str:
+        import google.generativeai as genai
+
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise GeminiGenerationError("GEMINI_API_KEY no está configurada.")
+
+        genai.configure(api_key=api_key)
+
+        prompt = f"""
+        Eres un experto en matemáticas.
+        Vas a recibir una pregunta original escrita en inglés y posiblemente con LaTeX roto.
+
+        Tu tarea es:
+        - Convertir expresiones LaTeX a matemáticas Unicode legibles (x², √5, π, ⅓, etc.)
+        - Quitar los símbolos $.
+        - Corregir el texto.
+        - Traducir al español.
+        - No inventes contenido.
+        - Devuelve solo la pregunta final.
+
+        Pregunta original:
+        {raw_question}
+        """
+
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        response = model.generate_content(prompt)
+
+        return response.text.strip()
+
+    def _extract_dataset_answer(self, text: str) -> str:
+        """
+        Extrae la respuesta correcta desde el formato:
+        'Pregunta: ... \nRespuesta: ...'
+        """
+        if "Respuesta:" in text:
+            try:
+                return text.split("Respuesta:")[1].strip()
+            except:
+                return ""
+        return ""
+    def generate_single_question_with_answer(self):
+        """
+        Devuelve: (pregunta_limpia, respuesta_correcta)
+        """
+        contexts = self.rag.read_dataset(max_texts=10, sample_random=True)
+
+        for ctx in contexts:
+            raw_question = self._extract_dataset_question(ctx)
+            correct_answer = self._extract_dataset_answer(ctx)
+
+            clean_question = self.normalize_question_with_gemini(raw_question)
+
+            return clean_question, correct_answer
+
+        return None, None

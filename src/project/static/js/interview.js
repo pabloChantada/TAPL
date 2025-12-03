@@ -101,7 +101,7 @@ const InterviewChatbot = () => {
                 timestamp: new Date()
             };
             setMessages([welcomeMsg]);
-            setTimeout(() => generateNextQuestion(data.session_id), 1500);
+            setTimeout(() => generateNextQuestion(data.session_id), 800);
         } catch (error) {
             console.error('Error al iniciar entrevista:', error);
             alert(`Error al iniciar la entrevista: ${error.message}`);
@@ -171,7 +171,8 @@ const InterviewChatbot = () => {
                     window.location.href = `/results/${sessionId}`;
                 }, 2000);
             } else {
-                setTimeout(() => generateNextQuestion(), 800);
+                setTimeout(() => generateNextQuestion(sessionId), 800);
+
             }
 
         } catch (error) {
@@ -188,7 +189,7 @@ const InterviewChatbot = () => {
         }
     };
 
-    const generateNextQuestion = async (sid = sessionId) => {
+    const generateNextQuestion = async (sid) => {
         if (questionCount >= totalQuestions) {
             console.log('No generar más preguntas - entrevista completada');
             return;
@@ -327,14 +328,14 @@ const InterviewChatbot = () => {
                                             key={dataset.id}
                                             onClick={() => setSelectedDataset(dataset.id)}
                                             className={`p-4 rounded-xl border-2 transition-all text-left ${selectedDataset === dataset.id
-                                                    ? 'border-indigo-600 bg-indigo-50 shadow-md'
-                                                    : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow'
+                                                ? 'border-indigo-600 bg-indigo-50 shadow-md'
+                                                : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow'
                                                 }`}
                                         >
                                             <div className="flex items-start gap-3">
                                                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${selectedDataset === dataset.id
-                                                        ? 'border-indigo-600 bg-indigo-600'
-                                                        : 'border-gray-300'
+                                                    ? 'border-indigo-600 bg-indigo-600'
+                                                    : 'border-gray-300'
                                                     }`}>
                                                     {selectedDataset === dataset.id && (
                                                         <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">

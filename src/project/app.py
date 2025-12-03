@@ -4,6 +4,8 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from project.rag.question_generator import QuestionGenerator, GeminiGenerationError
+from project.rag.answer_generator import AnswerGenerator
+
 from pydantic import BaseModel
 from typing import Optional
 import os
@@ -28,6 +30,8 @@ app.add_middleware(
 
 # Inicializar con dataset por defecto
 question_generator = QuestionGenerator(dataset_type="squad")
+answer_generator = AnswerGenerator()
+
 
 # Mount static files
 app.mount(
@@ -94,6 +98,11 @@ async def get_available_datasets():
                     "name": "HotpotQA",
                     "description": "Preguntas multi-hop complejas",
                 },
+                {
+                    "id": "coachquant",
+                    "name": "CoachQuant",
+                    "description": "Preguntas de entrevista cuantitativas",
+                }
             ]
         }
     )
@@ -148,39 +157,43 @@ async def get_next_question(session_id: str):
         return JSONResponse({"completed": True, "message": "Entrevista completada"})
 
     try:
-        # Generar UNA SOLA pregunta usando Gemini
-        questions = question_generator.generate_interview_questions(num_questions=1)
-        generated_question = (
-            questions[0] if questions else "Cuéntame sobre tu experiencia profesional."
-        )
+        # Generar pregunta + respuesta correcta del dataset
+        raw_question, raw_answer = question_generator.generate_single_question_with_answer()
 
-        return JSONResponse(
-            {
-                "completed": False,
-                "question_number": current_q + 1,
-                "total_questions": session["total_questions"],
-                "question_text": generated_question,
-            }
-        )
+        if raw_question is None:
+            raw_question = "No se pudo generar una pregunta."
+            raw_answer = ""
 
-    except GeminiGenerationError as ge:
-        # Respuesta explícita de error si Gemini no pudo generar la pregunta
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "No fue posible generar la pregunta con Gemini",
-                "details": str(ge),
-            },
-        )
+        # Limpiar la pregunta (ya viene limpia del question generator)
+        question_text = raw_question
+
+        # Limpiar la respuesta correcta usando Gemini
+        correct_answer = answer_generator.clean_answer(raw_answer)
+
+        # Guardar en memoria
+        if session_id not in interview_questions:
+            interview_questions[session_id] = {}
+
+        interview_questions[session_id][current_q + 1] = {
+            "question_text": question_text,
+            "correct_answer": correct_answer
+        }
+
+        return JSONResponse({
+            "completed": False,
+            "question_number": current_q + 1,
+            "total_questions": session["total_questions"],
+            "question_text": question_text,
+            "correct_answer": correct_answer
+        })
+
     except Exception as e:
         print(f"Error generating question: {str(e)}")
-        # En casos no relacionados con Gemini devolvemos fallback
         return JSONResponse(
             {
                 "completed": False,
                 "question_number": current_q + 1,
-                "total_questions": session["total_questions"],
-                "question_text": "Cuéntame sobre tu experiencia profesional.",
+                "question_text": "Error generando pregunta.",
             }
         )
 
@@ -190,14 +203,18 @@ async def save_answer(answer: UserAnswer):
     if answer.session_id not in interview_sessions:
         return JSONResponse(status_code=404, content={"error": "Sesión no encontrada"})
 
+    correct_answer = interview_questions[answer.session_id][answer.question_number]["correct_answer"]
+
     interview_answers[answer.session_id].append(
         {
             "question_number": answer.question_number,
             "question": answer.question_text,
             "answer": answer.answer_text,
+            "correct_answer": correct_answer,
             "timestamp": str(os.times()),
         }
     )
+
 
     session = interview_sessions[answer.session_id]
     session["current_question"] += 1
@@ -252,8 +269,8 @@ async def show_results_page(request: Request, session_id: str):
     # Extraer respuestas y preguntas esperadas (fallback si no hay preguntas guardadas)
     predictions = [ans["answer"] for ans in answers]
     references = [
-        ans["question"] for ans in answers
-    ]  # Usamos la pregunta como "referencia ideal"
+    ans["correct_answer"] for ans in answers
+    ]
 
     # Calcular métricas
     metrics = Metrics()
@@ -284,5 +301,8 @@ async def end_interview(session_id: str):
         del interview_sessions[session_id]
     if session_id in interview_answers:
         del interview_answers[session_id]
+    if session_id in interview_questions:
+        del interview_questions[session_id]
+
 
     return JSONResponse({"success": True, "message": "Sesión finalizada correctamente"})
