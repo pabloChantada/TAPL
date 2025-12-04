@@ -69,7 +69,7 @@ RESPUESTA DEL USUARIO:
 EVALUACIÓN AUTOMÁTICA:
 - Similitud semántica: {evaluation["semantic_similarity"]:.3f}
 - Validación numérica: {evaluation["numeric_score"]}
-- Keyword coverage: {evaluation["keyword_coverage"]:.3f}
+- Keyword coverage: {evaluation["concept_coverage"]:.3f}
 - Reasoning structure: {evaluation["reasoning_structure"]:.3f}
 - Score final: {evaluation["final_score"]:.3f}
 

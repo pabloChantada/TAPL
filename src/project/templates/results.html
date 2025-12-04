@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Resultados de Entrevista</title>
 
-    <!-- React & Babel (CDN) -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -15,9 +14,6 @@
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 
-
-
-    <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
@@ -52,7 +48,7 @@
         );
 
         /* ======================================================
-           COMPONENTE: FEEDBACK LOADER (usa cache)
+           COMPONENTE: FEEDBACK LOADER
         ====================================================== */
         const FeedbackLoader = ({ answerObj, evaluation, sessionId }) => {
             const [loading, setLoading] = useState(false);
@@ -96,7 +92,6 @@
             return (
                 <div className="mt-4 p-4 border-l-4 border-purple-500 bg-purple-50 rounded-lg">
                     <h4 className="text-lg font-semibold text-purple-800 mb-2">Feedback del Modelo</h4>
-
                     {loading ? (
                         <p className="text-sm text-gray-700 italic">Generando feedback...</p>
                     ) : (
@@ -107,7 +102,7 @@
         };
 
         /* ======================================================
-           COMPONENTE: EXPLANATION LOADER (nuevo, cacheado)
+           COMPONENTE: EXPLANATION LOADER
         ====================================================== */
         const ExplanationLoader = ({ answerObj, sessionId }) => {
             const [loading, setLoading] = useState(false);
@@ -138,7 +133,6 @@
                 } catch (err) {
                     setExplanation("Error generando explicación.");
                 }
-
                 setLoading(false);
             };
 
@@ -150,9 +144,7 @@
                 if (explanation) {
                     const container = document.getElementById(`exp-${answerObj.question_number}`);
                     if (container) {
-                        container.innerHTML = marked.parse(explanation); // Insert raw LaTeX
-
-                        // Render LaTeX → HTML bonito ✨
+                        container.innerHTML = marked.parse(explanation);
                         renderMathInElement(container, {
                             delimiters: [
                                 { left: "$", right: "$", display: false },
@@ -168,19 +160,82 @@
             return (
                 <div className="mt-4 p-4 border-l-4 border-orange-500 bg-orange-50 rounded-lg">
                     <h4 className="text-lg font-semibold text-orange-800 mb-2">Explicación Paso a Paso</h4>
-
                     {loading ? (
                         <p className="text-sm text-gray-700 italic">Generando explicación...</p>
                     ) : (
-                        <div
-                            id={`exp-${answerObj.question_number}`}
-                            className="text-sm text-gray-700 prose"
-                        ></div>
+                        <div id={`exp-${answerObj.question_number}`} className="text-sm text-gray-700 prose"></div>
                     )}
                 </div>
             );
         };
 
+        /* ======================================================
+           NUEVO COMPONENTE: THEORY LOADER (RAG Gemini)
+        ====================================================== */
+        const TheoryLoader = ({ question, questionNumber }) => {
+            const [loading, setLoading] = useState(false);
+            const [theory, setTheory] = useState(null);
+            const alreadyLoaded = useRef(false);
+
+            const fetchTheory = async () => {
+                if (alreadyLoaded.current || theory) return;
+
+                setLoading(true);
+                try {
+                    const res = await fetch("/api/theory", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ question: question })
+                    });
+
+                    const data = await res.json();
+                    setTheory(data.theory || "No se pudo recuperar la teoría.");
+                    alreadyLoaded.current = true;
+
+                } catch (err) {
+                    setTheory("Error conectando con la biblioteca de teoría.");
+                }
+                setLoading(false);
+            };
+
+            useEffect(() => {
+                fetchTheory(); // Cargar automáticamente al abrir el panel
+            }, []);
+
+            useEffect(() => {
+                if (theory) {
+                    const container = document.getElementById(`theory-${questionNumber}`);
+                    if (container) {
+                        container.innerHTML = marked.parse(theory);
+                        renderMathInElement(container, {
+                            delimiters: [
+                                { left: "$", right: "$", display: false },
+                                { left: "$$", right: "$$", display: true },
+                                { left: "\\(", right: "\\)", display: false },
+                                { left: "\\[", right: "\\]", display: true }
+                            ]
+                        });
+                    }
+                }
+            }, [theory]);
+
+            return (
+                <div className="mt-4 p-4 border-l-4 border-teal-500 bg-teal-50 rounded-lg">
+                    <h4 className="text-lg font-semibold text-teal-800 mb-2">📚 Teoría Subyacente (Biblioteca)</h4>
+                    {loading ? (
+                        <div className="flex items-center space-x-2">
+                            <svg className="animate-spin h-5 w-5 text-teal-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <p className="text-sm text-gray-700 italic">Consultando libros...</p>
+                        </div>
+                    ) : (
+                        <div id={`theory-${questionNumber}`} className="text-sm text-gray-700 prose"></div>
+                    )}
+                </div>
+            );
+        };
 
         /* ======================================================
            VISTA PRINCIPAL
@@ -190,12 +245,10 @@
 
             return (
                 <div className="max-w-5xl mx-auto">
-
                     {/* Header */}
                     <div className="text-center mb-8">
                         <h1 className="text-4xl font-bold text-gray-800">Resultados de la Entrevista</h1>
                         <p className="text-gray-600 mt-2">Evaluación automática con métricas NLP</p>
-
                         {dataset_type && (
                             <div className="inline-block mt-3 px-4 py-2 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium">
                                 Dataset: {dataset_type.toUpperCase()}
@@ -203,7 +256,7 @@
                         )}
                     </div>
 
-                    {/* Métricas principales */}
+                    {/* Métricas */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
                         <MetricCard title="BLEU" value={bleu} color="border-blue-500" desc="Similitud léxica" />
                         <MetricCard title="ROUGE-L" value={rouge.rougeL} color="border-green-500" desc="Secuencia común más larga" />
@@ -212,17 +265,14 @@
 
                     {/* RESPUESTAS */}
                     <div className="bg-white rounded-xl shadow-lg p-6">
-                        <h2 className="text-xl font-semibold mb-4">
-                            Respuestas Completas ({total_questions})
-                        </h2>
-
+                        <h2 className="text-xl font-semibold mb-4">Respuestas Completas ({total_questions})</h2>
                         <div className="space-y-4">
                             {answers.map((a, i) => {
                                 const evalData = evaluations[i];
-
                                 const [showEval, setShowEval] = useState(false);
                                 const [showFeedback, setShowFeedback] = useState(false);
                                 const [showExplanation, setShowExplanation] = useState(false);
+                                const [showTheory, setShowTheory] = useState(false); // Nuevo estado
 
                                 return (
                                     <details key={i} className="border rounded-lg p-4 bg-gray-50">
@@ -231,74 +281,57 @@
                                         </summary>
 
                                         <div className="mt-3 pl-4 border-l-2 border-indigo-300">
-
                                             <p className="text-sm text-gray-700">
                                                 <strong>Tu respuesta:</strong> {a.answer}
                                             </p>
-
                                             {a.correct_answer && (
                                                 <p className="text-sm text-green-700 mt-2">
                                                     <strong>Respuesta correcta:</strong> {a.correct_answer}
                                                 </p>
                                             )}
 
-                                            {/* Botones */}
+                                            {/* BOTONES */}
                                             <div className="mt-4 flex gap-3 flex-wrap">
-
-                                                <button
-                                                    onClick={() => setShowEval(!showEval)}
-                                                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-                                                >
+                                                <button onClick={() => setShowEval(!showEval)} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
                                                     {showEval ? "Ocultar Evaluación" : "Ver Evaluación"}
                                                 </button>
-
-                                                <button
-                                                    onClick={() => setShowFeedback(!showFeedback)}
-                                                    className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700"
-                                                >
+                                                <button onClick={() => setShowFeedback(!showFeedback)} className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700">
                                                     {showFeedback ? "Ocultar Feedback" : "Ver Feedback"}
                                                 </button>
-
-                                                <button
-                                                    onClick={() => setShowExplanation(!showExplanation)}
-                                                    className="px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700"
-                                                >
+                                                <button onClick={() => setShowExplanation(!showExplanation)} className="px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700">
                                                     {showExplanation ? "Ocultar Explicación" : "Ver Explicación Paso a Paso"}
                                                 </button>
-
+                                                {/* Botón Nuevo: Teoría */}
+                                                <button onClick={() => setShowTheory(!showTheory)} className="px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700">
+                                                    {showTheory ? "Ocultar Teoría" : "📚 Ver Teoría (Libros)"}
+                                                </button>
                                             </div>
 
-                                            {/* Panel Evaluación */}
+                                            {/* PANELES */}
                                             {showEval && (
                                                 <div className="mt-4 p-4 border-l-4 border-blue-500 bg-blue-50 rounded-lg">
-                                                    <h4 className="text-lg font-semibold text-blue-800 mb-2">
-                                                        Evaluación NLP
-                                                    </h4>
+                                                    <h4 className="text-lg font-semibold text-blue-800 mb-2">Evaluación NLP</h4>
                                                     <ul className="text-sm text-gray-800 space-y-1">
                                                         <li><strong>Similitud SBERT:</strong> {evalData.semantic_similarity.toFixed(3)}</li>
-                                                        <li><strong>Validación numérica:</strong> {evalData.numeric_score}</li>
-                                                        <li><strong>Keyword coverage:</strong> {evalData.keyword_coverage.toFixed(3)}</li>
+                                                        <li><strong>Validación Matemática:</strong> {evalData.numeric_score.toFixed(1)}</li>
+                                                        <li><strong>Keyword coverage:</strong> {evalData.concept_coverage.toFixed(3)}</li>
                                                         <li><strong>Reasoning score:</strong> {evalData.reasoning_structure.toFixed(3)}</li>
                                                         <li><strong>Score final:</strong> {evalData.final_score.toFixed(3)}</li>
                                                     </ul>
                                                 </div>
                                             )}
 
-                                            {/* Panel Feedback */}
                                             {showFeedback && (
-                                                <FeedbackLoader
-                                                    answerObj={a}
-                                                    evaluation={evalData}
-                                                    sessionId={data.session_id}
-                                                />
+                                                <FeedbackLoader answerObj={a} evaluation={evalData} sessionId={data.session_id} />
                                             )}
 
-                                            {/* Panel Explicación */}
                                             {showExplanation && (
-                                                <ExplanationLoader
-                                                    answerObj={a}
-                                                    sessionId={data.session_id}
-                                                />
+                                                <ExplanationLoader answerObj={a} sessionId={data.session_id} />
+                                            )}
+
+                                            {/* Panel Nuevo: Teoría */}
+                                            {showTheory && (
+                                                <TheoryLoader question={a.question} questionNumber={a.question_number} />
                                             )}
 
                                         </div>
@@ -313,18 +346,15 @@
                             Volver al inicio
                         </a>
                     </div>
-
                 </div>
             );
         };
 
         /* ------------------------------------------------------ */
-
         const rawData = JSON.parse(document.getElementById('initial-data').textContent);
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<ResultsPage data={rawData} />);
     </script>
-
 </body>
 
 </html>

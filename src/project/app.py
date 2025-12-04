@@ -8,6 +8,7 @@ from project.rag.answer_generator import AnswerGenerator
 from project.metrics.feedback_service import FeedbackService
 from project.metrics.evaluator import evaluate_full
 from project.metrics.explanation_service import ExplanationService
+from project.rag.gemini_rag_service import GeminiTheoryService
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -42,6 +43,7 @@ question_generator = QuestionGenerator(dataset_type="squad")
 answer_generator = AnswerGenerator()
 feedback_service = FeedbackService()
 explanation_service = ExplanationService()
+theory_service = GeminiTheoryService()
 
 
 
@@ -352,6 +354,14 @@ async def generate_explanation(payload: dict):
 
     return JSONResponse({"explanation": explanation})
 
+@app.post("/api/theory")
+async def get_theory(payload: dict):
+    question = payload.get("question")
+    if not question:
+        return JSONResponse(status_code=400, content={"error": "Falta la pregunta"})
+        
+    explanation = theory_service.get_theory_explanation(question)
+    return JSONResponse({"theory": explanation})
 
     
 @app.get("/results/{session_id}", response_class=HTMLResponse)
