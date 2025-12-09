@@ -23,7 +23,7 @@ from sympy import sympify, simplify
 embedding_model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
 
 # NLP para extracción de conceptos
-nlp = spacy.load("es_core_news_md")
+nlp = spacy.load('es_core_news_md')
 
 # Extracción semántica de keywords
 kw_model = KeyBERT("sentence-transformers/all-mpnet-base-v2")
