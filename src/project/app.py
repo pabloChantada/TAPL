@@ -306,6 +306,24 @@ async def show_results_page(request: Request, session_id: str):
             enriched_ans["correct_answer"] = references[i]
         enriched_answers.append(enriched_ans)
 
+    global_result = metrics.global_score(bleu_score, rouge_scores, bertscore_avg)
+
+    # Evaluar cada respuesta individualmente
+    detailed_answers = []
+    for i, ans in enumerate(answers):
+        individual_metrics = metrics.evaluate_single_answer(
+            predictions[i], 
+            references[i]
+        )
+        difficulty = metrics.classify_question_difficulty(references[i])
+        
+        detailed_answers.append({
+            **ans,
+            "correct_answer": references[i],
+            "metrics": individual_metrics,
+            "difficulty": difficulty
+        })
+
     data = {
         "session_id": session_id,
         "total_questions": len(answers),
@@ -314,6 +332,8 @@ async def show_results_page(request: Request, session_id: str):
         "rouge": rouge_scores,
         "bertscore": bertscore_avg,
         "answers": enriched_answers,
+        "global_score": global_result,
+        "answers": detailed_answers,
     }
 
     print(f"[DEBUG] Data preparada para template: {data}")

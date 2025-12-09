@@ -71,3 +71,6 @@
 - Llama
 - Gemini
 - ChatGPT
+
+- Metricas ponderadas para un mejor analisis
+  - Adicion de Resumen con LLM
