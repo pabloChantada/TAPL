@@ -5,6 +5,16 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from project.rag.question_generator import QuestionGenerator, GeminiGenerationError
 from project.rag.answer_generator import AnswerGenerator
+from project.metrics.feedback_service import FeedbackService
+from project.metrics.evaluator import evaluate_full
+from project.metrics.explanation_service import ExplanationService
+from project.rag.gemini_rag_service import GeminiTheoryService
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 
 from pydantic import BaseModel
 from typing import Optional
@@ -30,6 +40,10 @@ app.add_middleware(
 # Inicializar con dataset por defecto
 question_generator = QuestionGenerator(dataset_type="squad")
 answer_generator = AnswerGenerator()
+feedback_service = FeedbackService()
+explanation_service = ExplanationService()
+theory_service = GeminiTheoryService()
+
 
 
 # Mount static files
@@ -196,6 +210,8 @@ async def save_answer(answer: UserAnswer):
             "answer": answer.answer_text,
             "correct_answer": correct_answer,
             "timestamp": str(os.times()),
+            "feedback": None,
+            "explanation": None
         }
     )
 
@@ -238,7 +254,100 @@ async def get_results(session_id: str):
         }
     )
 
+@app.post("/api/feedback")
+async def generate_feedback(payload: dict):
+    logger.info("🔵 [API] /api/feedback llamado")
 
+    question = payload.get("question")
+    correct_answer = payload.get("correct_answer")
+    user_answer = payload.get("user_answer")
+    evaluation = payload.get("evaluation")
+
+    logger.info(f"📝 Pregunta recibida: {question[:120]}...")
+    logger.info(f"🟢 Correct Answer Length: {len(correct_answer)}")
+    logger.info(f"🟣 User Answer Length: {len(user_answer)}")
+    logger.info(f"📊 Evaluation: {evaluation}")
+
+    if not all([question, correct_answer, user_answer, evaluation]):
+        logger.error("❌ Campos faltantes en /api/feedback")
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Faltan campos para generar feedback"}
+        )
+
+    try:
+        logger.info("⚙️ Llamando a FeedbackService.generate_feedback()...")
+        feedback = feedback_service.generate_feedback(
+            question=question,
+            correct_answer=correct_answer,
+            user_answer=user_answer,
+            evaluation=evaluation
+        )
+        logger.info("✅ Feedback generado correctamente")
+
+        return JSONResponse({"feedback": feedback})
+
+    except Exception as e:
+        logger.exception("🔥 ERROR crítico generando feedback")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"No se pudo generar feedback: {str(e)}"}
+        )
+    
+@app.post("/api/explanation")
+async def generate_explanation(payload: dict):
+    logger.info("🔵 [API] /api/explanation llamado")
+
+    question = payload.get("question")
+    correct_answer = payload.get("correct_answer")
+    session_id = payload.get("session_id")
+    question_number = payload.get("question_number")
+
+    # Validación
+    if not all([question, correct_answer, session_id, question_number]):
+        return JSONResponse(status_code=400, content={"error": "Faltan campos"})
+
+    # Buscar respuesta guardada
+    saved_answer = next(
+        (a for a in interview_answers.get(session_id, [])
+         if a["question_number"] == question_number),
+        None
+    )
+
+    if saved_answer is None:
+        return JSONResponse(status_code=404, content={"error": "Respuesta no encontrada"})
+
+    # Ya existe → devolver cache
+    if saved_answer["explanation"] is not None:
+        logger.info("♻️ Explicación ya existente — devolviendo cache")
+        return JSONResponse({"explanation": saved_answer["explanation"]})
+
+    # NO existe → generar con Gemini
+    try:
+        explanation = explanation_service.generate_explanation(
+            question=question,
+            correct_answer=correct_answer
+        )
+    except Exception as e:
+        logger.exception("ERROR generando explicación")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+    # Guardar
+    saved_answer["explanation"] = explanation
+    logger.info("💾 Explicación guardada correctamente")
+
+    return JSONResponse({"explanation": explanation})
+
+@app.post("/api/theory")
+async def get_theory(payload: dict):
+    question = payload.get("question")
+    if not question:
+        return JSONResponse(status_code=400, content={"error": "Falta la pregunta"})
+        
+    explanation = theory_service.get_theory_explanation(question)
+    return JSONResponse({"theory": explanation})
+
+    
 @app.get("/results/{session_id}", response_class=HTMLResponse)
 async def show_results_page(request: Request, session_id: str):
     print(f"[DEBUG] Cargando resultados para session_id: {session_id}")

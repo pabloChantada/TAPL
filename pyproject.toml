@@ -36,6 +36,9 @@ dependencies = [
     "rouge-score (>=0.1.2,<0.2.0)",
     "nltk (>=3.9.2,<4.0.0)",
     "bert-score (>=0.3.13,<0.4.0)",
+    "spacy (>=3.8.11,<4.0.0)",
+    "keybert (>=0.9.0,<0.10.0)",
+    "sympy (>=1.14.0,<2.0.0)",
 ]
 [tool.poetry]
 packages = [{include = "project", from = "src"}]
