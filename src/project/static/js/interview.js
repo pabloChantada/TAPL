@@ -1,3 +1,4 @@
+// Interview Chatbot Component - v1.3
 const { useState, useEffect, useRef } = React;
 
 // Iconos SVG
@@ -44,68 +45,14 @@ const CircleIcon = () => (
     </svg>
 );
 
-// Icono de reiniciar
-const RefreshIcon = () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <polyline points="23 4 23 10 17 10"></polyline>
-        <polyline points="1 20 1 14 7 14"></polyline>
-        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+const LightbulbIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 18h6"></path>
+        <path d="M10 22h4"></path>
+        <path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"></path>
     </svg>
 );
 
-// Icono de información
-const InfoIcon = () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="10"></circle>
-        <line x1="12" y1="16" x2="12" y2="12"></line>
-        <line x1="12" y1="8" x2="12.01" y2="8"></line>
-    </svg>
-);
-
-// Componente Tooltip
-const Tooltip = ({ text, children }) => {
-    const [show, setShow] = useState(false);
-
-    return (
-        <div className="relative inline-block">
-            <button
-                onMouseEnter={() => setShow(true)}
-                onMouseLeave={() => setShow(false)}
-                onClick={() => setShow(!show)}
-                className="ml-1 text-indigo-500 hover:text-indigo-700 cursor-help inline-flex"
-            >
-                <InfoIcon />
-            </button>
-            {show && (
-                <div className="absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl">
-                    {text}
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                        <div className="border-8 border-transparent border-t-gray-900"></div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-// ✅ MEJORADO: Indicador de carga con mensaje dinámico
-const LoadingIndicator = ({ message = "Gemini está pensando..." }) => (
-    <div className="flex gap-3 animate-fade-in">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-            <BotIcon />
-        </div>
-        <div className="bg-white border border-indigo-200 rounded-2xl p-4 shadow-lg">
-            <div className="flex items-center gap-3">
-                <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                </div>
-                <span className="text-sm text-indigo-700 font-medium">{message}</span>
-            </div>
-        </div>
-    </div>
-);
 
 // Componente principal
 const InterviewChatbot = () => {
@@ -115,13 +62,17 @@ const InterviewChatbot = () => {
     const [interviewStarted, setInterviewStarted] = useState(false);
     const [sessionId, setSessionId] = useState(null);
     const [questionCount, setQuestionCount] = useState(0);
-    const [totalQuestions, setTotalQuestions] = useState(2);
+    const [totalQuestions, setTotalQuestions] = useState(1);
     const [selectedDataset, setSelectedDataset] = useState('squad');
     const [numQuestions, setNumQuestions] = useState(2); // Control dinámico
     const [datasets, setDatasets] = useState([]);
     const [loadingMessage, setLoadingMessage] = useState(''); // mensaje dinámico
     const messagesEndRef = useRef(null);
-
+    // Nuevo estado para controlar si se está pidiendo una pista para evitar spam
+    const [requestingHint, setRequestingHint] = useState(false);
+    // Rastrear para qué pregunta ya se pidió una pista
+    const [hintUsedForQuestion, setHintUsedForQuestion] = useState(null);
+    
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
@@ -161,6 +112,14 @@ const InterviewChatbot = () => {
     };
 
     const startInterview = async () => {
+        // Prevenir múltiples llamadas
+        if (interviewStarted || isGenerating || sessionId) {
+            console.log('Entrevista ya iniciada, ignorando clic duplicado');
+            return;
+        }
+        
+        setIsGenerating(true);
+        
         try {
             setLoadingMessage('Inicializando entrevista... ');
             setIsGenerating(true);
@@ -169,7 +128,7 @@ const InterviewChatbot = () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    total_questions: numQuestions, 
+                    total_questions: 1,
                     dataset_type: selectedDataset
                 })
             });
@@ -186,7 +145,7 @@ const InterviewChatbot = () => {
             const datasetName = datasets.find(d => d.id === selectedDataset)?.name || selectedDataset;
             const welcomeMsg = {
                 type: 'bot',
-                text: `¡Hola! Soy tu asistente de entrevista. Te haré ${data.total_questions} preguntas basadas en el dataset ${datasetName} para analizar tus conocimientos.`,
+                text: `¡Hola! Soy tu asistente de entrevista. Te haré una pregunta basada en el dataset ${datasetName} para analizar tus conocimientos.`,
                 timestamp: new Date()
             };
             setMessages([welcomeMsg]);
@@ -196,13 +155,22 @@ const InterviewChatbot = () => {
             console.error('Error al iniciar entrevista:', error);
             alert(`Error al iniciar la entrevista: ${error.message}`);
             setIsGenerating(false);
+            setInterviewStarted(false);
         }
     };
 
     const handleSubmit = async () => {
         if (!currentInput.trim() || isGenerating) return;
 
-        const currentQuestion = messages[messages.length - 1];
+        // Buscar la última pregunta válida en el historial (no user-action ni hint)
+        const currentQuestion = [...messages].reverse().find(m => m.questionNumber && m.type === 'bot' && !m.isAck && !m.isFinal);
+        
+        if (!currentQuestion || !currentQuestion.questionNumber) {
+            console.error('No se encontró pregunta válida para responder');
+            return;
+        }
+        
+        console.log('Enviando respuesta para pregunta:', currentQuestion.questionNumber);
 
         const userMessage = {
             type: 'user',
@@ -255,10 +223,8 @@ const InterviewChatbot = () => {
                 setMessages(prev => [...prev, finalMsg]);
 
                 setTimeout(() => {
-                    window.location.href = `/results/${sessionId}`;
+                    globalThis.location.href = `/results/${sessionId}`;
                 }, 2000);
-            } else {
-                setTimeout(() => generateNextQuestion(sessionId), 800);
             }
 
         } catch (error) {
@@ -290,13 +256,13 @@ const InterviewChatbot = () => {
                 let errText = `Error HTTP: ${response.status}`;
                 try {
                     const errData = await response.json();
-                    if (errData && errData.details) {
+                    if (errData?.details) {
                         errText = `No fue posible generar la pregunta: ${errData.details}`;
-                    } else if (errData && errData.error) {
+                    } else if (errData?.error) {
                         errText = `Error: ${errData.error}`;
                     }
                 } catch (e) {
-                    // no JSON
+                    console.error('Error parsing JSON response:', e);
                 }
 
                 const errorMsg = {
@@ -321,14 +287,20 @@ const InterviewChatbot = () => {
                 setMessages(prev => [...prev, finalMsg]);
 
                 setTimeout(() => {
-                    window.location.href = `/results/${sessionId}`;
+                    globalThis.location.href = `/results/${sessionId}`;
                 }, 2000);
                 return;
             }
 
+            // Limpiar el texto para mostrar solo la pregunta
+            const raw = data.question_text || '';
+            const questionOnly = raw.includes('Respuesta:')
+                ? raw.split('Respuesta:')[0].replace(/Pregunta:\s*/i, '').trim()
+                : raw.replace(/Pregunta:\s*/i, '').trim();
+
             const question = {
                 type: 'bot',
-                text: data.question_text,
+                text: questionOnly,
                 timestamp: new Date(),
                 questionNumber: data.question_number
             };
@@ -348,6 +320,78 @@ const InterviewChatbot = () => {
         }
     };
 
+    // [BLOQUE ELIMINADO AQUÍ: El código duplicado de generateNextQuestion y el "};" extra se borraron]
+
+    const handleRequestHint = async () => {
+        if (requestingHint || isGenerating) return;
+        
+        // CORRECCIÓN: Buscar la última pregunta válida en el historial
+        const currentQuestion = [...messages].reverse().find(m => m.questionNumber);
+        
+        if (!currentQuestion) {
+            console.log('No se encontró pregunta activa para la pista');
+            return;
+        }
+
+        // Verificar si ya se pidió una pista para esta pregunta
+        if (hintUsedForQuestion === currentQuestion.questionNumber) {
+            const warningMsg = {
+                type: 'bot',
+                text: 'Ya has usado tu pista para esta pregunta. Solo puedes pedir una pista por pregunta.',
+                timestamp: new Date(),
+                isWarning: true
+            };
+            setMessages(prev => [...prev, warningMsg]);
+            return;
+        }
+
+        setRequestingHint(true);
+        
+        // Mensaje visual temporal
+        setMessages(prev => [...prev, {
+            type: 'user-action',
+            text: '💡 Solicitando una pista...',
+            timestamp: new Date()
+        }]);
+
+        try {
+            const response = await fetch('/api/interview/hint', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    question_number: currentQuestion.questionNumber
+                })
+            });
+
+            if (!response.ok) throw new Error('Error en petición de pista');
+
+            const data = await response.json();
+            
+            if (data.hint) {
+                const hintMsg = {
+                    type: 'hint',
+                    text: data.hint,
+                    timestamp: new Date()
+                };
+                setMessages(prev => [...prev, hintMsg]);
+                // Marcar que ya se usó la pista para esta pregunta
+                setHintUsedForQuestion(currentQuestion.questionNumber);
+            }
+        } catch (error) {
+            console.error('Error pidiendo pista:', error);
+            // Opcional: Avisar al usuario del error
+            setMessages(prev => [...prev, {
+                type: 'bot', 
+                text: 'No pude generar una pista en este momento.', 
+                isError: true,
+                timestamp: new Date()
+            }]);
+        } finally {
+            setRequestingHint(false);
+        }
+    };
+    
     const handleKeyPress = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -386,8 +430,7 @@ const InterviewChatbot = () => {
                                 {Array.from({ length: totalQuestions }).map((_, i) => (
                                     <div
                                         key={i}
-                                        className={`w-8 h-1 rounded-full transition-all ${i < questionCount ? 'bg-green-300' : 'bg-indigo-300'
-                                            }`}
+                                        className={`w-8 h-1 rounded-full transition-all ${i < questionCount ? 'bg-green-300' : 'bg-indigo-300'}`}
                                     />
                                 ))}
                             </div>
@@ -410,7 +453,8 @@ const InterviewChatbot = () => {
                                     Bienvenido a tu Entrevista
                                 </h2>
                                 <p className="text-gray-600 max-w-md">
-                                    Configura tu entrevista seleccionando el número de preguntas y el tipo de dataset.
+                                    Responderás {totalQuestions} pregunta diseñada para evaluar
+                                    tus competencias y experiencia. Tómate tu tiempo para responder con detalle.
                                 </p>
                             </div>
 
@@ -483,10 +527,10 @@ const InterviewChatbot = () => {
 
                             <button
                                 onClick={startInterview}
-                                disabled={isGenerating}
+                                disabled={isGenerating || interviewStarted}
                                 className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                             >
-                                {isGenerating ? 'Iniciando...' : `Comenzar Entrevista con ${numQuestions} pregunta${numQuestions !== 1 ? 's' : ''}`}
+                                {isGenerating ? 'Iniciando...' : 'Comenzar Entrevista'}
                             </button>
                         </div>
                     ) : (
@@ -507,13 +551,22 @@ const InterviewChatbot = () => {
                                     <div
                                         className={`max-w-2xl rounded-2xl p-4 shadow-md ${msg.type === 'user'
                                             ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white'
-                                            : msg.isAck
-                                                ? 'bg-green-50 border border-green-200 text-green-800'
-                                                : msg.isFinal
-                                                    ?  'bg-purple-50 border border-purple-200 text-purple-900'
-                                                    : 'bg-white border border-gray-200 text-gray-800'
+                                            : msg.type === 'hint'
+                                                ? 'bg-yellow-50 border border-yellow-200 text-yellow-900'
+                                                : msg.type === 'user-action'
+                                                    ? 'bg-gray-100 text-gray-500 text-sm italic'
+                                                    : msg.isAck
+                                                        ? 'bg-green-50 border border-green-200 text-green-800'
+                                                        : msg.isFinal
+                                                            ? 'bg-purple-50 border border-purple-200 text-purple-900'
+                                                            : 'bg-white border border-gray-200 text-gray-800'
                                             }`}
                                     >
+                                        {msg.type === 'hint' && (
+                                            <div className="flex items-center gap-2 mb-2 text-sm font-bold text-yellow-600">
+                                                <LightbulbIcon /> Pista
+                                            </div>
+                                        )}
                                         {msg.questionNumber && (
                                             <div className="flex items-center gap-2 mb-2 text-sm font-semibold text-indigo-600">
                                                 <CircleIcon />
@@ -556,6 +609,26 @@ const InterviewChatbot = () => {
                                 className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                 disabled={isGenerating}
                             />
+                            <button
+                                onClick={handleRequestHint}
+                                disabled={
+                                    isGenerating || 
+                                    requestingHint || 
+                                    hintUsedForQuestion === [...messages].reverse().find(m => m.questionNumber)?.questionNumber
+                                }
+                                className={`p-3 rounded-xl transition-colors ${
+                                    hintUsedForQuestion === [...messages].reverse().find(m => m.questionNumber)?.questionNumber
+                                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                        : 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
+                                } disabled:opacity-50`}
+                                title={
+                                    hintUsedForQuestion === [...messages].reverse().find(m => m.questionNumber)?.questionNumber
+                                        ? 'Ya usaste tu pista para esta pregunta'
+                                        : 'Pedir una pista (solo una por pregunta)'
+                                }
+                            >
+                                <LightbulbIcon />
+                            </button>
                             <button
                                 onClick={handleSubmit}
                                 disabled={! currentInput.trim() || isGenerating}
