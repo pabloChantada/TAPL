@@ -27,21 +27,21 @@ class AnswerGenerator:
                 raise ValueError("DEEPSEEK_API_KEY no configurada.")
             self.client = OpenAI(api_key=self.api_key_deepseek, base_url="https://api.deepseek.com")
             self.model_name = "deepseek-chat"
-            logger.info("🔧 AnswerGenerator configurado con DEEPSEEK")
+            logger.info("AnswerGenerator configurado con DEEPSEEK")
             
         elif self.provider == "GROQ":
             if not self.api_key_groq:
                 raise ValueError("GROQ_API_KEY no configurada.")
             self.client = OpenAI(api_key=self.api_key_groq, base_url="https://api.groq.com/openai/v1")
             self.model_name = "llama-3.3-70b-versatile"
-            logger.info("🔧 AnswerGenerator configurado con GROQ")
+            logger.info("AnswerGenerator configurado con GROQ")
 
         else:
             if not self.api_key_gemini:
                 raise ValueError("GEMINI_API_KEY no configurada.")
             genai.configure(api_key=self.api_key_gemini)
             self.model = genai.GenerativeModel("gemini-2.5-flash")
-            logger.info("🔧 AnswerGenerator configurado con GEMINI")
+            logger.info("AnswerGenerator configurado con GEMINI")
 
     def clean_answer(self, raw_answer: str) -> str:
         prompt = f"""

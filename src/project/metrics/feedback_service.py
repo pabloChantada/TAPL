@@ -43,7 +43,7 @@ class FeedbackService:
                 raise ValueError("GEMINI_API_KEY no configurada.")
             genai.configure(api_key=self.api_key_gemini)
             self.model = genai.GenerativeModel("gemini-2.5-flash")
-            logger.info("🔧 FeedbackService configurado con GEMINI")
+            logger.info("FeedbackService configurado con GEMINI")
             try:
                 self.model.generate_content("Hi")
             except Exception as e:

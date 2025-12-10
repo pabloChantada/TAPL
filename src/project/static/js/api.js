@@ -33,7 +33,7 @@ const API = {
             body: JSON.stringify({
                 session_id: sessionId,
                 question_number: questionNumber,
-                question_text: questionText,
+                question_text:  questionText,
                 answer_text: answerText
             })
         });

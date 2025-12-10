@@ -405,15 +405,11 @@ async def show_results_page(request: Request, session_id: str):
                 logger.error(f"Error fallback metrics: {e}")
                 ans["metrics"] = {} # Evitar crash en frontend
 
-    # Ya no calculamos BLEU/ROUGE global aquí. 
-    # El frontend (results.js) se encarga de mostrar los promedios de 'metrics'.
-
     data = {
         "session_id": session_id,
         "total_questions": len(answers),
         "dataset_type": session.get("dataset_type", "squad"),
         "answers": answers
-        # Eliminadas las claves antiguas: bleu, rouge, bertscore
     }
     
     return templates.TemplateResponse("results.html", {"request": request, "data": data})

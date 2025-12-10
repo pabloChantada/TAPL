@@ -8,7 +8,7 @@ load_dotenv()
 
 api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
-    print("❌ Error: No se encontró GEMINI_API_KEY en el archivo .env")
+    print("Error: No se encontró GEMINI_API_KEY en el archivo .env")
     exit()
 
 genai.configure(api_key=api_key)
@@ -19,7 +19,7 @@ def upload_all_books():
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     books_dir = os.path.join(base_dir, "docs", "books")
 
-    print(f"📂 Buscando libros en: {books_dir} ...")
+    print(f"Buscando libros en: {books_dir} ...")
 
     # 2. Encontrar todos los .pdf
     pdf_files = glob.glob(os.path.join(books_dir, "*.pdf"))
@@ -30,12 +30,12 @@ def upload_all_books():
 
     uploaded_ids = []
 
-    print(f"📚 Se encontraron {len(pdf_files)} libros. Subiendo a Gemini...\n")
+    print(f"Se encontraron {len(pdf_files)} libros. Subiendo a Gemini...\n")
 
     # 3. Subir uno a uno
     for pdf_path in pdf_files:
         filename = os.path.basename(pdf_path)
-        print(f"   ⬆️ Subiendo: {filename} ...", end=" ", flush=True)
+        print(f"   Subiendo: {filename} ...", end=" ", flush=True)
         
         try:
             # Subida del archivo
@@ -44,12 +44,11 @@ def upload_all_books():
             # Esperar a que se procese (opcional, pero recomendado para verificar estado)
             # Aunque upload_file suele ser rápido, el estado 'ACTIVE' es lo ideal.
             
-            print(f"✅ OK! ID: {file_ref.name}")
+            print(f"OK ID: {file_ref.name}")
             uploaded_ids.append(file_ref.name)
             
         except Exception as e:
-            print(f"❌ Error: {e}")
-
+            print(f"Error: {e}")
     # 4. Generar la línea para el .env
     print("\n" + "="*50)
     print("🎉 ¡TODO LISTO! Copia esta línea en tu archivo .env:")

@@ -41,21 +41,21 @@ class QuestionGenerator:
                 raise LLMGenerationError("DEEPSEEK_API_KEY no configurada.")
             self.client = OpenAI(api_key=self.api_key_deepseek, base_url="https://api.deepseek.com")
             self.model_name = "deepseek-chat"
-            logger.info("🔧 QuestionGenerator configurado con DEEPSEEK")
+            logger.info("QuestionGenerator configurado con DEEPSEEK")
             
         elif self.provider == "GROQ":
             if not self.api_key_groq:
                 raise LLMGenerationError("GROQ_API_KEY no configurada.")
             self.client = OpenAI(api_key=self.api_key_groq, base_url="https://api.groq.com/openai/v1")
             self.model_name = "llama-3.3-70b-versatile" 
-            logger.info("🔧 QuestionGenerator configurado con GROQ")
+            logger.info("QuestionGenerator configurado con GROQ")
 
         else: # Default to GEMINI
             if not self.api_key_gemini:
                 raise LLMGenerationError("GEMINI_API_KEY no configurada.")
             genai.configure(api_key=self.api_key_gemini)
             self.model = genai.GenerativeModel("gemini-2.5-flash")
-            logger.info("🔧 QuestionGenerator configurado con GEMINI")
+            logger.info("QuestionGenerator configurado con GEMINI")
 
 
     def set_dataset(self, dataset_type: str):
