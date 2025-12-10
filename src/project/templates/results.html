@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Resultados de Entrevista</title>
 
-    <link href="/node_modules/tailwindcss/dist/tailwind.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/node_modules/katex/dist/katex.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
 
     <style>
         * { box-sizing: border-box; }
@@ -18,10 +20,9 @@
         }
     </style>
 
-    <!-- In-browser Babel + React/ReactDOM -->
-    <script src="/node_modules/@babel/standalone/babel.min.js"></script>
-    <script src="/node_modules/react/umd/react.production.min.js"></script>
-    <script src="/node_modules/react-dom/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <script src="/static/js/icons.js" type="text/babel"></script>
     <script src="/static/js/results.js" type="text/babel"></script>
@@ -38,5 +39,9 @@
             </div>
         </div>
     </div>
+
+    <script id="initial-data" type="application/json">
+        {{ data | tojson | safe }}
+    </script>
 </body>
 </html>
