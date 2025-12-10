@@ -20,10 +20,12 @@ import redis
 from project.rag.question_generator import QuestionGenerator
 from project.rag.answer_generator import AnswerGenerator
 from project.metrics.feedback_service import FeedbackService
-from project.metrics.evaluator import evaluate_full
 from project.metrics.explanation_service import ExplanationService
 from project.rag.gemini_rag_service import GeminiTheoryService
-from project.metrics.metrics import Metrics
+
+# IMPORTANTE: Importamos tu nuevo evaluador avanzado
+# Asegúrate de que el archivo evaluator.py que subiste esté en project/metrics/evaluator.py
+from project.metrics.evaluator import evaluate_full
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -44,7 +46,6 @@ try:
     logger.info(f"Conectado a Redis en {REDIS_URL}")
 except redis.ConnectionError:
     logger.warning("No se pudo conectar a Redis. Usando almacenamiento en memoria (NO apto para múltiples workers).")
-    # Fallback simple para desarrollo si Redis falla
     class MockRedis:
         def __init__(self): self.data = {}
         def get(self, key): return self.data.get(key)
@@ -62,7 +63,6 @@ app.add_middleware(
 )
 
 # Inicialización de servicios
-# (Estos servicios ya leen internamente LLM_PROVIDER para elegir Gemini o DeepSeek)
 question_generator = QuestionGenerator(dataset_type="squad")
 answer_generator = AnswerGenerator()
 feedback_service = FeedbackService()
@@ -81,7 +81,7 @@ class Question(BaseModel):
 
 class InterviewSession(BaseModel):
     session_id: Optional[str] = None
-    total_questions: int = 2 # Default to 2 questions
+    total_questions: int = 2 
     dataset_type: str = "natural_questions"
 
 class UserAnswer(BaseModel):
@@ -119,35 +119,34 @@ def save_questions_map(session_id: str, data: dict):
 # --- BACKGROUND TASK ---
 def process_evaluation_task(session_id: str, question_number: int, user_answer: str, correct_answer: str):
     """
-    Tarea que se ejecuta en segundo plano.
-    Calcula las métricas pesadas y actualiza el registro en Redis.
+    Tarea en segundo plano: Ejecuta evaluate_full (SymPy, SBERT, etc.)
+    y actualiza la respuesta en Redis con la clave 'metrics'.
     """
-    logger.info(f"[Background] Iniciando evaluación para sesión {session_id} - P{question_number}")
+    logger.info(f"[Background] Iniciando evaluación avanzada para {session_id} - P{question_number}")
     try:
-        # 1. Cálculo pesado (BERTScore, etc.)
-        evaluation = evaluate_full(
+        # 1. Cálculo pesado con tu nuevo evaluador
+        metrics = evaluate_full(
             correct_answer=correct_answer,
             user_answer=user_answer
         )
         
-        # 2. Actualizar Redis (Leemos, modificamos, guardamos)
-        # Nota: En un sistema muy concurrido, esto requeriría locks, pero para este caso sirve.
+        # 2. Actualizar Redis
         answers = get_answers(session_id)
         updated = False
         for ans in answers:
             if ans["question_number"] == question_number:
-                ans["evaluation"] = evaluation
+                ans["metrics"] = metrics  # Guardamos como 'metrics' para el frontend
                 updated = True
                 break
         
         if updated:
             save_answers(session_id, answers)
-            logger.info(f"[Background] Evaluación guardada para P{question_number}")
+            logger.info(f"[Background] Métricas guardadas para P{question_number}: {metrics.get('final_score')}")
         else:
-            logger.warning(f"[Background] No se encontró la respuesta para actualizar en sesión {session_id}")
+            logger.warning(f"[Background] No se encontró respuesta para actualizar P{question_number}")
 
     except Exception as e:
-        logger.error(f"[Background] Error en evaluación: {e}")
+        logger.error(f"[Background] Error CRÍTICO en evaluación: {e}")
 
 # --- ENDPOINTS ---
 
@@ -160,9 +159,6 @@ async def get_available_datasets():
     return JSONResponse({
         "datasets": [
             {"id": "squad", "name": "SQuAD", "description": "Stanford Question Answering Dataset"},
-            # {"id": "natural_questions", "name": "Natural Questions", "description": "Preguntas reales de Google Search"},
-            # {"id": "eli5", "name": "ELI5", "description": "Explain Like I'm 5 (Reddit)"},
-            # {"id": "hotpotqa", "name": "HotpotQA", "description": "Preguntas multi-hop complejas"},
             {"id": "coachquant", "name": "CoachQuant", "description": "Preguntas de entrevista cuantitativas"}
         ]
     })
@@ -171,14 +167,12 @@ async def get_available_datasets():
 async def start_interview(session: InterviewSession):
     session_id = str(uuid.uuid4())
 
-    # Configurar dataset
     if session.dataset_type != question_generator.dataset_type:
         try:
             question_generator.set_dataset(session.dataset_type)
         except Exception as e:
             return JSONResponse(status_code=500, content={"error": str(e)})
 
-    # Inicializar estado en Redis
     session_data = {
         "total_questions": session.total_questions,
         "current_question": 0,
@@ -207,16 +201,13 @@ async def get_next_question(session_id: str):
         return JSONResponse({"completed": True, "message": "Entrevista completada"})
 
     try:
-        # Generación
         raw_question, raw_answer = question_generator.generate_single_question_with_answer()
         if not raw_question:
             raw_question, raw_answer = "Error generando pregunta.", ""
 
-        # Limpieza (usa Gemini o DeepSeek según config)
-        clean_question = raw_question # Ya viene limpia del generator
+        clean_question = raw_question
         clean_answer = answer_generator.clean_answer(raw_answer)
 
-        # Guardar mapeo de pregunta actual
         q_map = get_questions_map(session_id)
         q_map[str(current_q + 1)] = {
             "question_text": clean_question,
@@ -238,20 +229,15 @@ async def get_next_question(session_id: str):
 
 @app.post("/api/interview/answer")
 async def save_answer(answer: UserAnswer, background_tasks: BackgroundTasks):
-    """
-    Guarda la respuesta y lanza el cálculo de métricas en background.
-    """
     session = get_session(answer.session_id)
     if not session:
         return JSONResponse(status_code=404, content={"error": "Sesión no encontrada"})
 
-    # Recuperar respuesta correcta
     q_map = get_questions_map(answer.session_id)
     q_data = q_map.get(str(answer.question_number))
     if not q_data:
         return JSONResponse(status_code=400, content={"error": "Datos de pregunta perdidos"})
 
-    # Objeto respuesta (sin evaluación aún)
     new_answer = {
         "question_number": answer.question_number,
         "question": answer.question_text,
@@ -260,19 +246,17 @@ async def save_answer(answer: UserAnswer, background_tasks: BackgroundTasks):
         "timestamp": str(os.times()),
         "feedback": None,
         "explanation": None,
-        "evaluation": None # Se llenará en background
+        "metrics": None # Inicializamos en None, el background worker lo llenará
     }
 
-    # Guardar en Redis
     answers_list = get_answers(answer.session_id)
     answers_list.append(new_answer)
     save_answers(answer.session_id, answers_list)
 
-    # Avanzar sesión
     session["current_question"] += 1
     save_session(answer.session_id, session)
 
-    # LANZAR BACKGROUND TASK
+    # Lanzar tarea pesada
     background_tasks.add_task(
         process_evaluation_task,
         answer.session_id,
@@ -284,24 +268,13 @@ async def save_answer(answer: UserAnswer, background_tasks: BackgroundTasks):
     completed = session["current_question"] >= session["total_questions"]
     return JSONResponse({
         "success": True,
-        "message": "Respuesta recibida. Evaluando en segundo plano.",
+        "message": "Respuesta recibida.",
         "completed": completed
     })
 
 @app.post("/api/interview/hint")
 async def get_hint(payload: HintRequest):
     session_id = payload.session_id
-    
-    # Validaciones básicas
-    session = get_session(session_id)
-    if not session:
-        return JSONResponse(status_code=404, content={"error": "Sesión no encontrada"})
-    
-    # Recuperar la pregunta actual de la "base de datos" en memoria/redis
-    # Nota: Si usas Redis, asegúrate de usar get_questions_map(session_id)
-    # Si estás en local con workers=1 (memoria), usa el diccionario:
-    
-    # Lógica compatible con ambos (Redis/Memoria según tu configuración actual):
     try:
         q_map = get_questions_map(session_id)
         q_data = q_map.get(str(payload.question_number))
@@ -309,40 +282,25 @@ async def get_hint(payload: HintRequest):
         if not q_data:
             return JSONResponse(status_code=400, content={"error": "Pregunta no encontrada"})
 
-        # Generar la pista
         hint = answer_generator.generate_hint(
             question=q_data["question_text"], 
             correct_answer=q_data["correct_answer"]
         )
-        
         return JSONResponse({"hint": hint})
 
     except Exception as e:
-        logger.error(f"Error en endpoint hint: {e}")
+        logger.error(f"Error en hint: {e}")
         return JSONResponse(status_code=500, content={"error": "Error generando pista"})
-
-@app.get("/api/interview/results/{session_id}")
-async def get_results_api(session_id: str):
-    session = get_session(session_id)
-    if not session:
-        return JSONResponse(status_code=404, content={"error": "Sesión no encontrada"})
-    
-    answers = get_answers(session_id)
-    return JSONResponse({
-        "session_id": session_id,
-        "total_questions": session["total_questions"],
-        "answers": answers
-    })
 
 @app.post("/api/feedback")
 async def generate_feedback(payload: dict):
-    # Llama al servicio (que ya sabe si usar DeepSeek o Gemini)
+    # Pasamos las métricas al feedback service para que el LLM sea consciente de la nota
     try:
         feedback = feedback_service.generate_feedback(
-            payload.get("question"),
-            payload.get("correct_answer"),
-            payload.get("user_answer"),
-            payload.get("evaluation")
+            question=payload.get("question"),
+            correct_answer=payload.get("correct_answer"),
+            user_answer=payload.get("user_answer"),
+            evaluation=payload.get("metrics") # El servicio espera un dict de evaluación
         )
         return JSONResponse({"feedback": feedback})
     except Exception as e:
@@ -353,21 +311,18 @@ async def generate_explanation(payload: dict):
     session_id = payload.get("session_id")
     question_number = payload.get("question_number")
     
-    # Intentar buscar en cache (Redis)
     answers = get_answers(session_id)
     target_ans = next((a for a in answers if a["question_number"] == question_number), None)
     
     if target_ans and target_ans.get("explanation"):
         return JSONResponse({"explanation": target_ans["explanation"]})
 
-    # Generar
     try:
         explanation = explanation_service.generate_explanation(
             payload.get("question"),
             payload.get("correct_answer")
         )
         
-        # Guardar en cache si es posible
         if target_ans:
             target_ans["explanation"] = explanation
             save_answers(session_id, answers)
@@ -378,7 +333,6 @@ async def generate_explanation(payload: dict):
 
 @app.post("/api/theory")
 async def get_theory(payload: dict):
-    # Este servicio maneja su propio error si está en modo DeepSeek
     explanation = theory_service.get_theory_explanation(payload.get("question"))
     return JSONResponse({"theory": explanation})
 
@@ -390,40 +344,27 @@ async def show_results_page(request: Request, session_id: str):
 
     answers = get_answers(session_id)
     
-    # Preparar métricas globales
-    # Si alguna evaluación aún es None (background task lenta), calculamos on-the-fly o ponemos 0
-    predictions = []
-    references = []
-    evaluations = []
-    
+    # Procesamiento final antes de enviar al frontend
     for ans in answers:
-        ev = ans.get("evaluation")
-        if not ev:
-            # Fallback síncrono si el usuario fue muy rápido viendo resultados
-            ev = evaluate_full(ans["correct_answer"], ans["answer"])
-            ans["evaluation"] = ev # Actualizamos localmente para mostrar
-        
-        evaluations.append(ev)
-        predictions.append(ans["answer"])
-        references.append(ans["correct_answer"])
+        # Si por alguna razón el background task no terminó o falló (Redis tiene metrics: None)
+        # calculamos las métricas en este momento para que no se rompa la UI
+        if not ans.get("metrics"):
+            logger.info(f"Calculando métricas on-the-fly para {session_id} P{ans['question_number']}")
+            try:
+                ans["metrics"] = evaluate_full(ans["correct_answer"], ans["answer"])
+            except Exception as e:
+                logger.error(f"Error fallback metrics: {e}")
+                ans["metrics"] = {} # Evitar crash en frontend
 
-    metrics = Metrics()
-    try:
-        bleu = round(metrics.bleu(predictions, references), 4)
-        rouge = {k: round(v, 4) for k, v in metrics.rouge(predictions, references).items()}
-        bertscore = round(metrics.bertscore(predictions, references, lang="es"), 4)
-    except Exception:
-        bleu, rouge, bertscore = 0, {}, 0
+    # Ya no calculamos BLEU/ROUGE global aquí. 
+    # El frontend (results.js) se encarga de mostrar los promedios de 'metrics'.
 
     data = {
         "session_id": session_id,
         "total_questions": len(answers),
         "dataset_type": session.get("dataset_type", "squad"),
-        "bleu": bleu,
-        "rouge": rouge,
-        "bertscore": bertscore,
-        "answers": answers,
-        "evaluations": evaluations
+        "answers": answers
+        # Eliminadas las claves antiguas: bleu, rouge, bertscore
     }
     
     return templates.TemplateResponse("results.html", {"request": request, "data": data})

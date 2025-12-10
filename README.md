@@ -72,7 +72,7 @@ El proyecto incluye un script de automatización para iniciar el servidor.
 
 El script `scripts/run_app.sh` detecta automáticamente si Redis está en ejecución y ajusta el número de workers de Uvicorn en consecuencia (4 workers con Redis, 1 worker sin Redis).
 
-*NOTA: Para el uso de multiples workers es necesario tener una instancia de redis ejecutandose con: ```bash redis-status```*
+*NOTA: Para el uso de multiples workers es necesario tener una instancia de redis ejecutandose con: ```bash redis-server```*
 
 ```bash
 chmod +x scripts/run_app.sh
