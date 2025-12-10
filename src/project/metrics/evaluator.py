@@ -58,30 +58,67 @@ def semantic_similarity(text_a: str, text_b: str) -> float:
     score = util.cos_sim(emb_a, emb_b)
     return float(score)
 
+def _extract_numbers(text: str) -> List[float]:
+    """
+    Extrae todos los números (enteros o decimales) en orden de aparición.
+    - Convierte comas a punto decimal para notación española.
+    """
+    normalized = text.replace(",", ".")
+    nums = re.findall(r"-?\d+(?:\.\d+)?", normalized)
+    return [float(n) for n in nums]
+
 def extract_math_expr(text: str):
-    # Intenta extraer expresiones matemáticas o números
-    # Filtra texto para dejar solo chars matemáticos probables
-    exprs = re.findall(r"[0-9\+\-\*\/\^\(\)Hh_e\.]+", text.replace(" ", ""))
+    """
+    Intenta extraer una expresión matemática sencilla.
+    - Prioriza patrones tipo 'N = valor'.
+    - Si no encuentra, devuelve None (se usará el plan B con números sueltos).
+    """
+    normalized = text.replace(",", ".")
+    match = re.search(r"[Nn]\s*=\s*(-?\d+(?:\.\d+)?)", normalized)
+    if match:
+        return match.group(1)
+
+    # Captura la expresión “más larga” con operadores básicos y números/decimales.
+    exprs = re.findall(r"[0-9\+\-\*\/\^\(\)\.\s]+", normalized)
+    exprs = [e.strip() for e in exprs if e.strip()]
     if exprs:
-        # Devuelve la expresión más larga encontrada
         return max(exprs, key=len)
     return None
 
 def numeric_validation(correct_answer: str, user_answer: str) -> float:
-    correct = extract_math_expr(correct_answer)
-    user = extract_math_expr(user_answer)
+    """
+    Estrategia híbrida:
+    1) Intenta equivalencia exacta con sympy (si hay expresiones).
+    2) Si falla, compara el “número más representativo” (último número mencionado)
+       con tolerancia para decimales.
+    """
+    # --- Paso 1: sympy si es posible ---
+    correct_expr = extract_math_expr(correct_answer)
+    user_expr = extract_math_expr(user_answer)
 
-    if correct is None or user is None:
+    if correct_expr and user_expr:
+        try:
+            c = simplify(sympify(correct_expr))
+            u = simplify(sympify(user_expr))
+            if simplify(c - u) == 0:
+                return 1.0
+        except Exception:
+            pass  # Seguimos al plan B
+
+    # --- Paso 2: comparación por números sueltos (robusto a texto libre) ---
+    def representative_number(text: str):
+        nums = _extract_numbers(text)
+        return nums[-1] if nums else None  # Usamos el último número del texto
+
+    cnum = representative_number(correct_answer)
+    unum = representative_number(user_answer)
+
+    if cnum is None or unum is None:
         return 0.0
 
-    try:
-        # Sympy validation
-        c = simplify(sympify(correct))
-        u = simplify(sympify(user))
-        # Chequear equivalencia (resta es cero)
-        return 1.0 if simplify(c - u) == 0 else 0.0
-    except Exception:
-        return 0.0
+    # Tolerancia relativa para decimales (1%) y absoluta mínima
+    tol = max(1e-6, 0.01 * max(abs(cnum), abs(unum), 1))
+    return 1.0 if abs(cnum - unum) <= tol else 0.0
 
 def extract_concepts(text: str) -> List[str]:
     models = EvaluatorModels()
@@ -124,10 +161,10 @@ def reasoning_structure_score(answer: str) -> float:
 def final_hybrid_score(sem: float, num: float, concepts: float, reasoning: float) -> float:
     # Ponderación personalizada para problemas cuantitativos
     return (
-        0.05 * sem +       # Similitud pura (menos peso en mates)
-        0.30 * num +       # Exactitud numérica (Crucial)
-        0.20 * concepts +  # Uso de terminología correcta
-        0.45 * reasoning   # El proceso lógico es lo más importante
+        0.00 * sem +       # Similitud pura (menos peso en mates)
+        1.00 * num +       # Exactitud numérica (Crucial)
+        0.00 * concepts +  # Uso de terminología correcta
+        0.00 * reasoning   # El proceso lógico es lo más importante
     )
 
 def evaluate_full(correct_answer: str, user_answer: str) -> Dict[str, Any]:

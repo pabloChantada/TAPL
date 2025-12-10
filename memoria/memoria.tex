@@ -1,0 +1,203 @@
+\documentclass[12pt, a4paper]{article} % Changed to article to support Section-based hierarchy
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{geometry}
+\usepackage{titlesec}
+\usepackage{parskip} % Adds slight spacing between paragraphs for better readability
+
+% Configuración de márgenes
+\geometry{top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm}
+
+% Configuración para código
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+\lstset{style=mystyle}
+
+% Configuración de links (negro para texto, azul para URL)
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=magenta,      
+    urlcolor=blue,
+    pdftitle={TAPL Memoria Técnica},
+}
+
+% Configuración de profundidad del índice
+\setcounter{tocdepth}{3} % Muestra hasta subsubsection en el índice
+\setcounter{secnumdepth}{3}
+
+% Comando para notas del autor (Tú)
+\newcommand{\TODO}[1]{\textcolor{red}{\textbf{[TODO: #1]}}}
+
+\title{
+    \vspace{2cm}
+    \textbf{\Huge TAPL: Technical Assessment Preparation Lab} \\
+    \vspace{1cm}
+    \Large Memoria Técnica del Proyecto \\
+    \vspace{0.5cm}
+    \large Plataforma de Preparación de Entrevistas basada en RAG e IA Generativa
+}
+\author{
+    \textbf{Autores:} \\
+    Pablo Chantada Saborido \\
+    Guillermo García Engelmo
+}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+% Índice
+\tableofcontents
+\newpage
+
+% -------------------------------------------------------------------
+% SECCIÓN 1: INTRODUCCIÓN
+% -------------------------------------------------------------------
+\section{Introducción y Visión General}
+
+\subsection{Descripción del Proyecto}
+TAPL (Technical Assessment Preparation Lab) es una plataforma interactiva diseñada para la preparación de entrevistas técnicas y cuantitativas. La aplicación utiliza Inteligencia Artificial Generativa y técnicas de RAG (\textit{Retrieval-Augmented Generation}) para simular sesiones de entrevista, generar preguntas dinámicas, evaluar respuestas mediante métricas de Procesamiento de Lenguaje Natural (NLP) y proporcionar retroalimentación teórica.
+
+El objetivo principal es ofrecer a los usuarios un entorno realista donde puedan practicar preguntas técnicas extraídas de datasets reconocidos (como SQuAD o CoachQuant) y recibir una evaluación objetiva e instantánea.
+
+\subsection{Objetivos}
+\begin{itemize}
+    \item Implementar un sistema de generación dinámica de preguntas técnicas.
+    \item Desarrollar un motor de evaluación automática utilizando métricas como BERTScore, ROUGE y BLEU.
+    \item Integrar capacidades de RAG para proporcionar soporte teórico contextualizado.
+    \item Crear una interfaz web ágil y persistente para la gestión de sesiones.
+\end{itemize}
+
+% -------------------------------------------------------------------
+% SECCIÓN 2: PLANIFICACIÓN
+% -------------------------------------------------------------------
+\section{Cronología y Planificación}
+
+\subsection{Fase 1: Planificación e Inicio (8/10 - 15/10)}
+El proyecto comenzó con la definición del alcance y la selección de recursos.
+\begin{itemize}
+    \item \textbf{Selección del tema:} Se decidió enfocar la herramienta en entrevistas técnicas debido a la necesidad de feedback inmediato en este ámbito.
+    \item \textbf{Dataset inicial:} Se seleccionó SQuAD como dataset base para probar la infraestructura, aunque posteriormente se evolucionó hacia datasets más específicos como \textit{CoachQuant}.
+    \item \textbf{Planificación:} Se estructuró el proyecto separando lógica de negocio (Backend FastAPI) e interfaz de usuario.
+\end{itemize}
+
+\TODO{Explica aquí brevemente por qué elegisteis Python y FastAPI sobre otras opciones (ej. Django o Node.js). ¿Buscabais rapidez de desarrollo o rendimiento asíncrono?}
+
+\subsection{Fase 2: Implementación del Pipeline y Modelos (15/10 - 20/10)}
+Durante esta semana se estableció el núcleo de la IA:
+\begin{itemize}
+    \item \textbf{Limpieza de datos:} Procesamiento del dataset SQuAD para adaptarlo al formato de preguntas y respuestas.
+    \item \textbf{Selección de Modelos:} Se realizaron pruebas con diversos LLMs. La bitácora registra pruebas con DialGPT, Qwen, Bert Multilingual, Llama, ChatGPT y finalmente Gemini.
+\end{itemize}
+
+\subsection{Fase 3: Implementación de RAG y Refinamiento (22/10 en adelante)}
+La característica clave de TAPL es su capacidad de RAG.
+\begin{itemize}
+    \item \textbf{RAG Básico vs Avanzado:} Se implementó un pipeline inicial con un \textit{retriever} (FAISS/Chroma) y un \textit{reader}. Posteriormente, se mejoró añadiendo ranking de contexto y ajuste de temperatura.
+    \item \textbf{Métricas de Evaluación:} Se integraron librerías como \texttt{rouge-score}, \texttt{bert-score} y \texttt{evaluate} para dar una puntuación numérica a las respuestas del usuario.
+\end{itemize}
+
+\TODO{En la bitácora se menciona "Ajuste de temperatura". Explica la decisión: ¿Queríais respuestas más creativas o más deterministas? (Generalmente para entrevistas técnicas se busca baja temperatura).}
+
+% -------------------------------------------------------------------
+% SECCIÓN 3: ARQUITECTURA TÉCNICA
+% -------------------------------------------------------------------
+\section{Arquitectura Técnica}
+
+\subsection{Stack Tecnológico}
+El proyecto se basa en un stack moderno de Python (versiones 3.10 - 3.15):
+\begin{description}
+    \item[Backend Framework:] \textbf{FastAPI}. Elegido por su soporte nativo asíncrono y facilidad para crear APIs RESTful.
+    \item[Gestión de Dependencias:] \textbf{Poetry}. Utilizado para asegurar la reproducibilidad del entorno, frente al clásico \texttt{pip freeze}.
+    \item[Base de Datos / Caché:] \textbf{Redis}. Utilizado para la persistencia del estado de la sesión (preguntas actuales, respuestas previas).
+    \item[LLM Provider:] Soporte multi-proveedor (Gemini, DeepSeek, OpenAI), configurado mediante variables de entorno.
+\end{description}
+
+\subsection{Estructura del Proyecto}
+El código se organiza siguiendo principios de modularidad en \texttt{src/project}:
+\begin{itemize}
+    \item \texttt{rag/}: Contiene la lógica de generación de preguntas (\texttt{question\_generator.py}) y conexión con LLMs.
+    \item \texttt{metrics/}: Módulos aislados para evaluación (\texttt{evaluator.py}, \texttt{metrics.py}) y generación de feedback.
+    \item \texttt{app.py}: Punto de entrada, inyección de dependencias y definición de endpoints.
+\end{itemize}
+
+\subsection{Decisiones de Diseño Clave}
+
+\subsubsection{Persistencia: Redis vs Memoria}
+El sistema implementa un patrón de \textit{fallback} interesante en \texttt{app.py}. Se intenta conectar a una instancia de Redis definida en las variables de entorno. Si la conexión falla, el sistema conmuta automáticamente a una clase \texttt{MockRedis} en memoria.
+
+\textbf{Justificación Técnica:}
+\TODO{Aquí explica por qué hiciste esto. Ejemplo: "Esto permite a otros desarrolladores probar el proyecto localmente sin necesidad de levantar un contenedor Docker de Redis, facilitando el onboarding, mientras que en producción asegura escalabilidad para múltiples workers".}
+
+\subsubsection{Evaluación en Segundo Plano (Background Tasks)}
+El endpoint \texttt{/api/interview/answer} no devuelve la evaluación inmediatamente. En su lugar, utiliza \texttt{BackgroundTasks} de FastAPI.
+
+\textbf{Justificación Técnica:}
+El cálculo de métricas como BERTScore requiere inferencia de modelos pesados (Transformers), lo que puede tardar varios segundos. Bloquear la respuesta HTTP afectaría negativamente la experiencia de usuario (UX). Al moverlo a segundo plano, la interfaz responde rápido y los resultados se actualizan posteriormente.
+
+\subsubsection{Estrategia de RAG (Retrieval-Augmented Generation)}
+Se utiliza RAG no solo para responder preguntas, sino para el módulo de teoría. Los documentos se cargan y se vectorizan para que, cuando un usuario pide ayuda teórica, el sistema recupere el contexto relevante de libros subidos previamente.
+
+\TODO{Explica la decisión de usar Gemini para la parte de RAG. ¿Fue por la ventana de contexto, el costo o la calidad de la API?}
+
+% -------------------------------------------------------------------
+% SECCIÓN 4: IMPLEMENTACIÓN
+% -------------------------------------------------------------------
+\section{Implementación Funcional}
+
+\subsection{Gestión de Datasets}
+El sistema soporta la carga dinámica de datasets. Originalmente basado en SQuAD, se extendió para soportar \texttt{CoachQuant}, un dataset específico para entrevistas cuantitativas, demostrando la extensibilidad de la arquitectura de \texttt{dataset\_readers.py}.
+
+\subsection{Interfaz de Usuario}
+Se optó por una solución de \textit{Server-Side Rendering} ligera utilizando \textbf{Jinja2} integrado en FastAPI, servido junto con archivos estáticos (CSS/JS). Esto evita la complejidad de mantener un frontend separado (como React) para este prototipo, permitiendo una iteración más rápida.
+
+\subsection{Métricas Implementadas}
+El sistema proporciona una evaluación multidimensional:
+\begin{itemize}
+    \item \textbf{BLEU:} Para medir la superposición de n-gramas.
+    \item \textbf{ROUGE:} Para medir la calidad del resumen/recuperación.
+    \item \textbf{BERTScore:} Para medir la similitud semántica, crucial en respuestas técnicas donde el fraseo puede variar pero el significado debe ser exacto.
+\end{itemize}
+
+% -------------------------------------------------------------------
+% SECCIÓN 5: CONCLUSIONES
+% -------------------------------------------------------------------
+\section{Líneas Futuras y Conclusiones}
+
+Basado en el análisis de opciones finales (\texttt{final\_iter\_options.md}), los siguientes pasos para TAPL incluyen:
+\begin{enumerate}
+    \item \textbf{Historial Persistente:} Migrar de Redis (volátil) a una base de datos SQL (PostgreSQL) para guardar históricos de usuarios a largo plazo.
+    \item \textbf{Agentificación:} Crear agentes especializados por dominio (Matemáticas, Historia, Coding) con contextos propios.
+    \item \textbf{Mejora de UX:} Implementar un selector de número de preguntas y dificultad en el frontend.
+\end{enumerate}
+
+TAPL demuestra la viabilidad de utilizar LLMs y RAG para la educación técnica personalizada. La arquitectura híbrida (FastAPI + Redis + LLM API) permite un despliegue flexible, y el sistema de evaluación automática ofrece un valor añadido significativo frente a los simuladores de entrevista tradicionales que carecen de feedback semántico.
+
+\end{document}

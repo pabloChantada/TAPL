@@ -123,7 +123,7 @@ const InterviewChatbot = () => {
         if (questionCount >= totalQuestions) return;
 
         setIsGenerating(true);
-        setLoadingMessage('Gemini está formulando tu pregunta...');
+        setLoadingMessage('La IA está formulando tu pregunta...');
 
         try {
             const data = await API.getNextQuestion(sid);
