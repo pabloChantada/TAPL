@@ -1,118 +1,119 @@
 import os
-from google import genai
-from google.genai import types
 import logging
+
+try:
+    import google.generativeai as genai
+except ImportError:
+    pass
+try:
+    from openai import OpenAI
+except ImportError:
+    pass
+
 logger = logging.getLogger(__name__)
 
-class GeminiGenerationError(Exception):
-    pass
 class FeedbackService:
-    """
-    Servicio para generar feedback explicativo basado en LLM (Gemini).
-    Recibe la pregunta, la respuesta correcta, la del usuario y las métricas heurísticas.
-    Devuelve un feedback estructurado en español.
-    """
-
     def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise GeminiGenerationError("GEMINI_API_KEY no está configurada.")
+        self.provider = os.getenv("LLM_PROVIDER", "GEMINI").upper()
+        self.api_key_gemini = os.getenv("GEMINI_API_KEY")
+        self.api_key_deepseek = os.getenv("DEEPSEEK_API_KEY")
+        self.api_key_groq = os.getenv("GROQ_API_KEY")
+        
+        self.client = None
+        self.model = None
 
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
+        if self.provider == "DEEPSEEK":
+            if not self.api_key_deepseek:
+                raise ValueError("DEEPSEEK_API_KEY no configurada.")
+            self.client = OpenAI(api_key=self.api_key_deepseek, base_url="https://api.deepseek.com")
+            self.model_name = "deepseek-reasoner"
+            logger.info("FeedbackService configurado con DEEPSEEK (Reasoner)")
+            self._warm_up_client()
+        
+        elif self.provider == "GROQ":
+            if not self.api_key_groq:
+                raise ValueError("GROQ_API_KEY no configurada.")
+            self.client = OpenAI(api_key=self.api_key_groq, base_url="https://api.groq.com/openai/v1")
+            self.model_name = "llama-3.3-70b-versatile"
+            logger.info("FeedbackService configurado con GROQ")
+            self._warm_up_client()
 
-        self.model = genai.GenerativeModel("gemini-2.5-flash")
+        else:
+            if not self.api_key_gemini:
+                raise ValueError("GEMINI_API_KEY no configurada.")
+            genai.configure(api_key=self.api_key_gemini)
+            self.model = genai.GenerativeModel("gemini-2.5-flash")
+            logger.info("🔧 FeedbackService configurado con GEMINI")
+            try:
+                self.model.generate_content("Hi")
+            except Exception as e:
+                logger.warning(f"Gemini warm-up failed: {e}")
 
-        # 🔥 PRECALENTAR EL MODELO PARA EVITAR BLOQUEO EN LA PRIMERA REQUEST
+    def _warm_up_client(self):
         try:
-            self.model.generate_content(
-                "Hello. This is a system warm-up request. Respond with 'OK'."
+            self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": "Hi"}],
+                max_tokens=1
             )
         except Exception as e:
-            print("[Warning] Warm-up request failed:", e)
+            logger.warning(f"{self.provider} warm-up failed: {e}")
 
     def generate_feedback(self, question, correct_answer, user_answer, evaluation):
-
-        logger.info("📏 Tamaños del prompt:")
-        logger.info(f"   Pregunta: {len(question)} chars")
-        logger.info(f"   Correct Answer: {len(correct_answer)} chars")
-        logger.info(f"   User Answer: {len(user_answer)} chars")
-
         prompt = f"""
 Eres un evaluador experto de entrevistas cuantitativas.
 Tu tarea es analizar la respuesta del usuario de forma breve y directa.
-NO resuelvas el problema, NO des la solución paso a paso y NO reproduzcas la respuesta correcta completa.
+NO resuelvas el problema, NO des la solución paso a paso.
 
 Genera un feedback conciso que incluya únicamente:
 - Un análisis breve de la respuesta del usuario.
-- Qué partes, si alguna, son correctas.
-- Qué partes faltan o están mal razonadas.
-- Errores conceptuales o numéricos relevantes.
-- Una recomendación de mejora clara y corta.
+- Qué partes son correctas y qué falta.
+- Recomendación de mejora.
 
-NO uses formato de secciones, listas largas o títulos.  
-Responde en un texto fluido y compacto de no más de 8–10 líneas.  
-Evita el markdown y evita enumeraciones.  
-Habla de manera natural, como si dieras feedback rápido de un profesor a un alumno.
+NO uses formato de secciones ni listas largas.  
+Responde en un texto fluido y compacto de no más de 8–10 líneas en español.
 
 ---
 
 PREGUNTA:
 {question}
 
-RESPUESTA CORRECTA (referencia interna):
+RESPUESTA CORRECTA:
 {correct_answer}
 
 RESPUESTA DEL USUARIO:
 {user_answer}
 
-EVALUACIÓN AUTOMÁTICA:
-- Similitud semántica: {evaluation["semantic_similarity"]:.3f}
-- Validación numérica: {evaluation["numeric_score"]}
-- Keyword coverage: {evaluation["concept_coverage"]:.3f}
-- Reasoning structure: {evaluation["reasoning_structure"]:.3f}
-- Score final: {evaluation["final_score"]:.3f}
-
----
+METRICAS:
+{evaluation}
 
 Genera el feedback AHORA en español.
 """
-
-
-        logger.info(f"🧾 Longitud final del PROMPT: {len(prompt)} chars")
-
         try:
-            logger.info("🟡 Enviando prompt a Gemini...")
-            response = self.model.generate_content(
-                prompt,
-                generation_config={
-                    "temperature": 0.4,
-                    "max_output_tokens": 8192,
-                }
-            )
-
-            logger.info("🟢 Respuesta RAW de Gemini:")
-            logger.info(response)
-
-            # 🔍 Validación de seguridad: ¿hay contenido real?
-            if (not response.candidates
-                or not response.candidates[0].content
-                or not response.candidates[0].content.parts):
-                
-                finish = response.candidates[0].finish_reason if response.candidates else "n/a"
-                logger.error(f"❌ Gemini NO devolvió texto. finish_reason={finish}")
-
-                return (
-                    "### Feedback no disponible\n"
-                    "El modelo no pudo generar un feedback válido. "
-                    "Esto suele ocurrir cuando la respuesta del usuario es demasiado corta, "
-                    "vacía o no interpretable."
+            logger.info(f"Generando feedback con {self.provider}...")
+            
+            if self.provider in ["DEEPSEEK", "GROQ"]:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.4,
+                    max_tokens=4096
                 )
+                text = response.choices[0].message.content
+            else:
+                response = self.model.generate_content(
+                    prompt,
+                    generation_config={"temperature": 0.4, "max_output_tokens": 8192}
+                )
+                if response.candidates and response.candidates[0].content.parts:
+                    text = response.candidates[0].content.parts[0].text
+                else:
+                    text = ""
 
-            # ✔️ Texto válido garantizado
-            text = response.candidates[0].content.parts[0].text
+            if not text:
+                return "No se pudo generar feedback."
             return text
 
         except Exception as e:
-            logger.exception("🔥 Error llamando a Gemini")
+            logger.exception(f"Error generando feedback con {self.provider}")
             return "Ocurrió un error generando el feedback."

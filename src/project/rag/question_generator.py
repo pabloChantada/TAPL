@@ -1,174 +1,97 @@
 import os
 from typing import List, Optional
+import logging
 from .rag import RAG
 
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
 
-class GeminiGenerationError(Exception):
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
+
+logger = logging.getLogger(__name__)
+
+class LLMGenerationError(Exception):
     pass
-
 
 class QuestionGenerator:
     def __init__(self, dataset_type: str = "squad"):
-        """
-        Inicializa el generador de preguntas con un tipo de dataset específico.
-
-        Args:
-            dataset_type: tipo de dataset ('squad', 'natural_questions', 'eli5', 'hotpotqa')
-        """
         self.dataset_type = dataset_type
         self.rag = RAG(dataset_type=dataset_type)
         try:
             self.rag.load_chroma_db()
         except Exception as e:
-            print(f"[QuestionGenerator] No se pudo cargar chroma DB en init: {e}")
+            logger.error(f"[QuestionGenerator] No se pudo cargar chroma DB en init: {e}")
 
-        self.question_template = """
-            Eres un experto examinador. Genera **UNA UNICA PREGUNTA** para evaluar a un usuario.
-            Es un sistema de entrevistas, tu función es devolver **ÚNICAMENTE LA PREGUNTA** dado un contexto.
-            La pregunta no debe superar los 100 caracteres y debe ser en **ESPAÑOL**. El contexto que vas a utilizar es: {context}
-            """
+        # --- CONFIGURACIÓN DEL PROVEEDOR ---
+        self.provider = os.getenv("LLM_PROVIDER", "GEMINI").upper()
+        self.api_key_gemini = os.getenv("GEMINI_API_KEY")
+        self.api_key_deepseek = os.getenv("DEEPSEEK_API_KEY")
+        self.api_key_groq = os.getenv("GROQ_API_KEY")
+        
+        self.client = None
+        self.model = None
+
+        if self.provider == "DEEPSEEK":
+            if not self.api_key_deepseek:
+                raise LLMGenerationError("DEEPSEEK_API_KEY no configurada.")
+            self.client = OpenAI(api_key=self.api_key_deepseek, base_url="https://api.deepseek.com")
+            self.model_name = "deepseek-chat"
+            logger.info("🔧 QuestionGenerator configurado con DEEPSEEK")
+            
+        elif self.provider == "GROQ":
+            if not self.api_key_groq:
+                raise LLMGenerationError("GROQ_API_KEY no configurada.")
+            self.client = OpenAI(api_key=self.api_key_groq, base_url="https://api.groq.com/openai/v1")
+            self.model_name = "llama-3.3-70b-versatile" # Modelo potente y gratuito en Groq
+            logger.info("🔧 QuestionGenerator configurado con GROQ")
+
+        else: # Default to GEMINI
+            if not self.api_key_gemini:
+                raise LLMGenerationError("GEMINI_API_KEY no configurada.")
+            genai.configure(api_key=self.api_key_gemini)
+            self.model = genai.GenerativeModel("gemini-2.5-flash")
+            logger.info("🔧 QuestionGenerator configurado con GEMINI")
 
 
     def set_dataset(self, dataset_type: str):
-        """
-        Cambia el dataset activo y recarga el RAG.
-
-        Args:
-            dataset_type: tipo de dataset ('squad', 'natural_questions', 'eli5', 'hotpotqa')
-        """
         if dataset_type != self.dataset_type:
             self.dataset_type = dataset_type
             self.rag = RAG(dataset_type=dataset_type)
             try:
                 self.rag.load_chroma_db()
-                print(f"[QuestionGenerator] Dataset cambiado a: {dataset_type}")
+                logger.info(f"[QuestionGenerator] Dataset cambiado a: {dataset_type}")
             except Exception as e:
-                print(
-                    f"[QuestionGenerator] Error cargando nuevo dataset '{dataset_type}': {e}"
-                )
+                logger.error(f"[QuestionGenerator] Error cargando dataset '{dataset_type}': {e}")
 
-    def generate_interview_questions(
-        self, num_questions: int = 5, topic: str = ""
-    ) -> List[str]:
-
+    def generate_interview_questions(self, num_questions: int = 5, topic: str = "") -> List[str]:
         try:
-            contexts = self.rag.read_dataset(
-                max_texts=num_questions * 4, sample_random=True
-            )
-
+            contexts = self.rag.read_dataset(max_texts=num_questions * 4, sample_random=True)
             questions = []
             used_contexts = set()
 
             for context in contexts:
                 if len(questions) >= num_questions:
                     break
-
                 snippet = context[:150]
                 if snippet in used_contexts:
                     continue
                 used_contexts.add(snippet)
 
-                # 1. extraer la pregunta real del dataset
                 raw_question = self._extract_dataset_question(context)
-
-                # 2. normalizarla con gemini (limpiar latex + traducir)
-                clean_question = self.normalize_question_with_gemini(raw_question)
-
+                clean_question = self.normalize_question_with_llm(raw_question)
                 questions.append(clean_question)
 
             return questions[:num_questions]
-
         except Exception as e:
-            print(f"Error generando preguntas: {str(e)}")
-
-
-    def _extract_text_from_result(self, result) -> str:
-        if hasattr(result, "page_content"):
-            return getattr(result, "page_content") or str(result)
-        if isinstance(result, dict):
-            return result.get("page_content") or result.get("content") or str(result)
-        return str(result)
-
-    def _generate_with_gemini(self, prompt: str) -> Optional[str]:
-        """Generar usando google.generativeai con compatibilidad para versiones recientes del SDK."""
-        try:
-            import google.generativeai as genai
-
-            api_key = os.getenv("GEMINI_API_KEY")
-            if not api_key:
-                raise GeminiGenerationError(
-                    "GEMINI_API_KEY no está configurada en las variables de entorno."
-                )
-
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel("gemini-2.5-flash")
-            print("\n==============================")
-            print("🧠 PROMPT ENVIADO A GEMINI:")
-            print("==============================")
-            print(prompt)
-            print("==============================\n")
-            response = model.generate_content(prompt)
-
-            text = response.text.strip() if hasattr(response, "text") else str(response)
-            print(text)
-            return text
-
-        except Exception as e:
-            print(f"Gemini failed with exception {e}")
-            return None
-
-    def _extract_keywords(self, text: str) -> List[str]:
-        words = text.lower().split()
-        stop_words = {
-            "el",
-            "la",
-            "de",
-            "en",
-            "y",
-            "que",
-            "con",
-            "para",
-            "por",
-            "los",
-            "las",
-            "del",
-            "un",
-            "una",
-        }
-        keywords = [
-            word.strip(".,:;()[]{}\"'")
-            for word in words
-            if word not in stop_words and len(word) > 3
-        ]
-        seen = set()
-        uniq = []
-        for w in keywords:
-            if w not in seen:
-                seen.add(w)
-                uniq.append(w)
-            if len(uniq) >= 5:
-                break
-        return uniq
-
-    def _clean_question(self, text: str) -> str:
-        text = text.strip()
-        if "." in text and "?" in text:
-            qpos = text.find("?")
-            if qpos != -1:
-                text = text[: qpos + 1]
-        if not text.endswith("?"):
-            if "?" in text:
-                text = text[: text.find("?") + 1]
-            else:
-                text = text.rstrip(".") + "?"
-        text = text[0].upper() + text[1:] if text else text
-        return text
+            logger.error(f"Error generando preguntas: {str(e)}")
+            return []
 
     def _extract_dataset_question(self, text: str) -> str:
-        """
-        Extrae la pregunta desde el formato:
-        'Pregunta: .... \nRespuesta: ...'
-        """
         if "Pregunta:" in text:
             try:
                 return text.split("Pregunta:")[1].split("Respuesta:")[0].strip()
@@ -176,15 +99,15 @@ class QuestionGenerator:
                 return text.strip()
         return text.strip()
 
-    def normalize_question_with_gemini(self, raw_question: str) -> str:
-        import google.generativeai as genai
+    def _extract_dataset_answer(self, text: str) -> str:
+        if "Respuesta:" in text:
+            try:
+                return text.split("Respuesta:")[1].strip()
+            except:
+                return ""
+        return ""
 
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise GeminiGenerationError("GEMINI_API_KEY no está configurada.")
-
-        genai.configure(api_key=api_key)
-
+    def normalize_question_with_llm(self, raw_question: str) -> str:
         prompt = f"""
         Eres un experto en matemáticas.
         Vas a recibir una pregunta original escrita en inglés y posiblemente con LaTeX roto.
@@ -201,34 +124,29 @@ class QuestionGenerator:
         {raw_question}
         """
 
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        response = model.generate_content(prompt)
+        try:
+            if self.provider in ["DEEPSEEK", "GROQ"]:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.1
+                )
+                return response.choices[0].message.content.strip()
+            else:
+                response = self.model.generate_content(prompt)
+                return response.text.strip()
+        except Exception as e:
+            logger.error(f"Error normalizando pregunta con {self.provider}: {e}")
+            return raw_question
 
-        return response.text.strip()
+    def normalize_question_with_gemini(self, raw_question: str) -> str:
+        return self.normalize_question_with_llm(raw_question)
 
-    def _extract_dataset_answer(self, text: str) -> str:
-        """
-        Extrae la respuesta correcta desde el formato:
-        'Pregunta: ... \nRespuesta: ...'
-        """
-        if "Respuesta:" in text:
-            try:
-                return text.split("Respuesta:")[1].strip()
-            except:
-                return ""
-        return ""
     def generate_single_question_with_answer(self):
-        """
-        Devuelve: (pregunta_limpia, respuesta_correcta)
-        """
         contexts = self.rag.read_dataset(max_texts=10, sample_random=True)
-
         for ctx in contexts:
             raw_question = self._extract_dataset_question(ctx)
             correct_answer = self._extract_dataset_answer(ctx)
-
-            clean_question = self.normalize_question_with_gemini(raw_question)
-
+            clean_question = self.normalize_question_with_llm(raw_question)
             return clean_question, correct_answer
-
         return None, None
