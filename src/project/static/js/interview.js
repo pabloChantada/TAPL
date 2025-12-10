@@ -47,12 +47,12 @@ const CircleIcon = () => (
 
 const LightbulbIcon = () => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="9" y1="18" x2="15" y2="18"></line>
-        <line x1="10" y1="22" x2="14" y2="22"></line>
-        <path d="M15.09 14c.18-.98.18-2.02 0-3-.39-1.67-1.61-3-3.09-3.5-.49-.17-1-.26-1.5-.26-.5 0-1 .09-1.5.26-1.48.5-2.7 1.83-3.09 3.5-.18.98-.18 2.02 0 3 .39 1.67 1.61 3 3.09 3.5.49.17 1 .26 1.5.26.5 0 1-.09 1.5-.26 1.48-.5 2.7-1.83 3.09-3.5z"></path>
-        <circle cx="12" cy="5" r="3"></circle>
+        <path d="M9 18h6"></path>
+        <path d="M10 22h4"></path>
+        <path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"></path>
     </svg>
 );
+
 
 // Componente principal
 const InterviewChatbot = () => {
@@ -62,12 +62,14 @@ const InterviewChatbot = () => {
     const [interviewStarted, setInterviewStarted] = useState(false);
     const [sessionId, setSessionId] = useState(null);
     const [questionCount, setQuestionCount] = useState(0);
-    const [totalQuestions, setTotalQuestions] = useState(2);
+    const [totalQuestions, setTotalQuestions] = useState(1);
     const [selectedDataset, setSelectedDataset] = useState('squad');
     const [datasets, setDatasets] = useState([]);
     const messagesEndRef = useRef(null);
     // Nuevo estado para controlar si se está pidiendo una pista para evitar spam
     const [requestingHint, setRequestingHint] = useState(false);
+    // Rastrear para qué pregunta ya se pidió una pista
+    const [hintUsedForQuestion, setHintUsedForQuestion] = useState(null);
     
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -91,7 +93,7 @@ const InterviewChatbot = () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    total_questions: 2,
+                    total_questions: 1,
                     dataset_type: selectedDataset
                 })
             });
@@ -108,7 +110,7 @@ const InterviewChatbot = () => {
             const datasetName = datasets.find(d => d.id === selectedDataset)?.name || selectedDataset;
             const welcomeMsg = {
                 type: 'bot',
-                text: `¡Hola! Soy tu asistente de entrevista. Te haré una serie de preguntas basadas en el dataset ${datasetName} para analizar tus conocimientos.`,
+                text: `¡Hola! Soy tu asistente de entrevista. Te haré una pregunta basada en el dataset ${datasetName} para analizar tus conocimientos.`,
                 timestamp: new Date()
             };
             setMessages([welcomeMsg]);
@@ -181,9 +183,6 @@ const InterviewChatbot = () => {
                 setTimeout(() => {
                     globalThis.location.href = `/results/${sessionId}`;
                 }, 2000);
-            } else {
-                setTimeout(() => generateNextQuestion(sessionId), 800);
-
             }
 
         } catch (error) {
@@ -277,14 +276,31 @@ const InterviewChatbot = () => {
     const handleRequestHint = async () => {
         if (requestingHint || isGenerating) return;
         
-        const currentQuestion = messages[messages.length - 1];
-        if (!currentQuestion?.questionNumber) return;
+        // CORRECCIÓN: Buscar la última pregunta válida en el historial
+        const currentQuestion = [...messages].reverse().find(m => m.questionNumber);
+        
+        if (!currentQuestion) {
+            console.log('No se encontró pregunta activa para la pista');
+            return;
+        }
+
+        // Verificar si ya se pidió una pista para esta pregunta
+        if (hintUsedForQuestion === currentQuestion.questionNumber) {
+            const warningMsg = {
+                type: 'bot',
+                text: 'Ya has usado tu pista para esta pregunta. Solo puedes pedir una pista por pregunta.',
+                timestamp: new Date(),
+                isWarning: true
+            };
+            setMessages(prev => [...prev, warningMsg]);
+            return;
+        }
 
         setRequestingHint(true);
         
-        // Añadir mensaje visual de "pidiendo pista..."
+        // Mensaje visual temporal
         setMessages(prev => [...prev, {
-            type: 'user-action', // Tipo especial interno
+            type: 'user-action',
             text: '💡 Solicitando una pista...',
             timestamp: new Date()
         }]);
@@ -299,18 +315,29 @@ const InterviewChatbot = () => {
                 })
             });
 
+            if (!response.ok) throw new Error('Error en petición de pista');
+
             const data = await response.json();
             
             if (data.hint) {
                 const hintMsg = {
-                    type: 'hint', // Nuevo tipo para estilizar diferente
+                    type: 'hint',
                     text: data.hint,
                     timestamp: new Date()
                 };
                 setMessages(prev => [...prev, hintMsg]);
+                // Marcar que ya se usó la pista para esta pregunta
+                setHintUsedForQuestion(currentQuestion.questionNumber);
             }
         } catch (error) {
             console.error('Error pidiendo pista:', error);
+            // Opcional: Avisar al usuario del error
+            setMessages(prev => [...prev, {
+                type: 'bot', 
+                text: 'No pude generar una pista en este momento.', 
+                isError: true,
+                timestamp: new Date()
+            }]);
         } finally {
             setRequestingHint(false);
         }
@@ -340,9 +367,8 @@ const InterviewChatbot = () => {
                             <div className="flex gap-1">
                                 {Array.from({ length: totalQuestions }).map((_, i) => (
                                     <div
-                                        key={dataset.id}
-                                        className={`w-8 h-1 rounded-full transition-all ${i < questionCount ? 'bg-green-300' : 'bg-indigo-300'
-                                            }`}
+                                        key={i} // <-- antes usaba dataset.id (no existe en este scope)
+                                        className={`w-8 h-1 rounded-full transition-all ${i < questionCount ? 'bg-green-300' : 'bg-indigo-300'}`}
                                     />
                                 ))}
                             </div>
@@ -365,7 +391,7 @@ const InterviewChatbot = () => {
                                     Bienvenido a tu Entrevista
                                 </h2>
                                 <p className="text-gray-600 max-w-md">
-                                    Responderás {totalQuestions} preguntas diseñadas para evaluar
+                                    Responderás {totalQuestions} pregunta diseñada para evaluar
                                     tus competencias y experiencia. Tómate tu tiempo para responder con detalle.
                                 </p>
                             </div>
@@ -509,9 +535,21 @@ const InterviewChatbot = () => {
                             />
                             <button
                                 onClick={handleRequestHint}
-                                disabled={isGenerating || requestingHint}
-                                className="p-3 bg-yellow-100 text-yellow-600 rounded-xl hover:bg-yellow-200 transition-colors disabled:opacity-50"
-                                title="Pedir una pista"
+                                disabled={
+                                    isGenerating || 
+                                    requestingHint || 
+                                    hintUsedForQuestion === [...messages].reverse().find(m => m.questionNumber)?.questionNumber
+                                }
+                                className={`p-3 rounded-xl transition-colors ${
+                                    hintUsedForQuestion === [...messages].reverse().find(m => m.questionNumber)?.questionNumber
+                                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                        : 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
+                                } disabled:opacity-50`}
+                                title={
+                                    hintUsedForQuestion === [...messages].reverse().find(m => m.questionNumber)?.questionNumber
+                                        ? 'Ya usaste tu pista para esta pregunta'
+                                        : 'Pedir una pista (solo una por pregunta)'
+                                }
                             >
                                 <LightbulbIcon />
                             </button>
