@@ -257,7 +257,7 @@ const MetricsExplanationModal = ({ onClose }) => (
             
             <div className="p-6">
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200 font-mono text-xs md:text-sm text-center text-gray-600">
-                    NOTA FINAL = (0.45 × RAZONAMIENTO) + (0.30 × MATEMÁTICAS) + (0.20 × CONCEPTOS) + (0.05 × SEMÁNTICA)
+                    NOTA FINAL = (0.15 × RAZONAMIENTO) + (0.60 × MATEMÁTICAS) + (0.10 × CONCEPTOS) + (0.15 × SEMÁNTICA)
                 </div>
 
                 <p className="text-gray-600 mb-6">
@@ -270,7 +270,7 @@ const MetricsExplanationModal = ({ onClose }) => (
                         <div className="absolute top-0 right-0 p-2 opacity-10"><Icons.Brain /></div>
                         <div className="flex justify-between items-center mb-2">
                             <h3 className="font-bold text-blue-800">1. Razonamiento Lógico</h3>
-                            <span className="bg-blue-200 text-blue-800 px-2 py-0.5 rounded text-xs font-bold">45%</span>
+                            <span className="bg-blue-200 text-blue-800 px-2 py-0.5 rounded text-xs font-bold">15%</span>
                         </div>
                         <p className="text-sm text-blue-900 mb-3">
                             Evaluamos si tu respuesta sigue una cadena de pensamiento estructurada. No basta con el número final.
@@ -286,7 +286,7 @@ const MetricsExplanationModal = ({ onClose }) => (
                         <div className="absolute top-0 right-0 p-2 opacity-10"><Icons.Calculator /></div>
                         <div className="flex justify-between items-center mb-2">
                             <h3 className="font-bold text-green-800">2. Precisión Matemática</h3>
-                            <span className="bg-green-200 text-green-800 px-2 py-0.5 rounded text-xs font-bold">30%</span>
+                            <span className="bg-green-200 text-green-800 px-2 py-0.5 rounded text-xs font-bold">60%</span>
                         </div>
                         <p className="text-sm text-green-900 mb-3">
                             Usamos motores de cálculo simbólico (SymPy) para verificar si tu resultado es equivalente al correcto.
@@ -302,7 +302,7 @@ const MetricsExplanationModal = ({ onClose }) => (
                         <div className="absolute top-0 right-0 p-2 opacity-10"><Icons.BookOpen /></div>
                         <div className="flex justify-between items-center mb-2">
                             <h3 className="font-bold text-purple-800">3. Cobertura Conceptual</h3>
-                            <span className="bg-purple-200 text-purple-800 px-2 py-0.5 rounded text-xs font-bold">20%</span>
+                            <span className="bg-purple-200 text-purple-800 px-2 py-0.5 rounded text-xs font-bold">10%</span>
                         </div>
                         <p className="text-sm text-purple-900 mb-3">
                             Analizamos si usas la terminología técnica adecuada para el dominio del problema.
@@ -318,7 +318,7 @@ const MetricsExplanationModal = ({ onClose }) => (
                         <div className="absolute top-0 right-0 p-2 opacity-10"><Icons.CheckCircle /></div>
                         <div className="flex justify-between items-center mb-2">
                             <h3 className="font-bold text-teal-800">4. Similitud Semántica</h3>
-                            <span className="bg-teal-200 text-teal-800 px-2 py-0.5 rounded text-xs font-bold">5%</span>
+                            <span className="bg-teal-200 text-teal-800 px-2 py-0.5 rounded text-xs font-bold">15%</span>
                         </div>
                         <p className="text-sm text-teal-900 mb-3">
                             Comparamos el significado vectorial de tu texto con la respuesta de referencia.

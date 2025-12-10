@@ -3,8 +3,10 @@ advanced_evaluator.py
 Módulo de evaluación cuantitativa y lógica.
 """
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Iterable
 import logging
+from difflib import SequenceMatcher
+from unidecode import unidecode
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO)
@@ -18,8 +20,18 @@ try:
     from sympy import sympify, simplify
 except ImportError as e:
     logger.error(f"Faltan dependencias para el evaluador avanzado: {e}")
-    logger.error("Ejecuta: pip install sentence-transformers spacy keybert sympy")
+    logger.error("Ejecuta: pip install sentence-transformers spacy keybert sympy unidecode")
     raise
+
+# Stopwords simples en español para limpieza de conceptos
+STOPWORDS_ES = {
+    "el", "la", "los", "las", "un", "una", "unos", "unas",
+    "de", "del", "al", "a", "en", "y", "o", "u", "que", "con",
+    "por", "para", "como", "es", "son", "sea", "ser", "se",
+    "lo", "su", "sus", "suya", "suyo", "suya", "este", "esta",
+    "esto", "ese", "esa", "eso", "hay", "si", "sí",
+    "no", "dado", "dada", "dadas", "dados"
+}
 
 # ============================================================
 # CARGA DE MODELOS (Lazy Loading para no bloquear inicio)
@@ -48,6 +60,49 @@ class EvaluatorModels:
         return cls._instance
 
 # ============================================================
+# HELPERS
+# ============================================================
+
+def _normalize_token(tok: str) -> str:
+    tok = unidecode(tok.lower().strip())
+    tok = re.sub(r"[^\w\-/\.]", " ", tok)
+    tok = tok.strip()
+    return tok
+
+def _fuzzy_match(a: str, b: str, threshold: float = 0.85) -> bool:
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    # Coincidencia por contención para términos cortos
+    if len(a) >= 3 and len(b) >= 3 and (a in b or b in a):
+        return True
+    return SequenceMatcher(None, a, b).ratio() >= threshold
+
+def _tokenize_basic(text: str) -> List[str]:
+    text = unidecode(text.lower())
+    parts = re.split(r"[^a-z0-9\-/\.]+", text)
+    return [p for p in parts if p and len(p) > 1 and p not in STOPWORDS_ES]
+
+def _extract_numbers(text: str) -> List[float]:
+    normalized = text.replace(",", ".")
+    nums = re.findall(r"-?\d+(?:\.\d+)?", normalized)
+    return [float(n) for n in nums]
+
+def _extract_fractions(text: str) -> List[float]:
+    normalized = text.replace(",", ".")
+    fracs = []
+    for num, den in re.findall(r"(-?\d+(?:\.\d+)?)\s*/\s*(-?\d+(?:\.\d+)?)", normalized):
+        try:
+            d = float(den)
+            if d == 0:
+                continue
+            fracs.append(float(num) / d)
+        except Exception:
+            continue
+    return fracs
+
+# ============================================================
 # FUNCIONES DE EVALUACIÓN
 # ============================================================
 
@@ -56,16 +111,8 @@ def semantic_similarity(text_a: str, text_b: str) -> float:
     emb_a = models.embedding_model.encode(text_a, convert_to_tensor=True)
     emb_b = models.embedding_model.encode(text_b, convert_to_tensor=True)
     score = util.cos_sim(emb_a, emb_b)
-    return float(score)
-
-def _extract_numbers(text: str) -> List[float]:
-    """
-    Extrae todos los números (enteros o decimales) en orden de aparición.
-    - Convierte comas a punto decimal para notación española.
-    """
-    normalized = text.replace(",", ".")
-    nums = re.findall(r"-?\d+(?:\.\d+)?", normalized)
-    return [float(n) for n in nums]
+    scaled = (float(score) + 1) / 2  # [-1,1] -> [0,1]
+    return max(0.0, min(1.0, scaled))
 
 def extract_math_expr(text: str):
     """
@@ -78,7 +125,6 @@ def extract_math_expr(text: str):
     if match:
         return match.group(1)
 
-    # Captura la expresión “más larga” con operadores básicos y números/decimales.
     exprs = re.findall(r"[0-9\+\-\*\/\^\(\)\.\s]+", normalized)
     exprs = [e.strip() for e in exprs if e.strip()]
     if exprs:
@@ -89,10 +135,8 @@ def numeric_validation(correct_answer: str, user_answer: str) -> float:
     """
     Estrategia híbrida:
     1) Intenta equivalencia exacta con sympy (si hay expresiones).
-    2) Si falla, compara el “número más representativo” (último número mencionado)
-       con tolerancia para decimales.
+    2) Si falla, compara el número/razón más representativo con tolerancia adaptable.
     """
-    # --- Paso 1: sympy si es posible ---
     correct_expr = extract_math_expr(correct_answer)
     user_expr = extract_math_expr(user_answer)
 
@@ -105,67 +149,122 @@ def numeric_validation(correct_answer: str, user_answer: str) -> float:
         except Exception:
             pass  # Seguimos al plan B
 
-    # --- Paso 2: comparación por números sueltos (robusto a texto libre) ---
-    def representative_number(text: str):
-        nums = _extract_numbers(text)
-        return nums[-1] if nums else None  # Usamos el último número del texto
+    def candidates(text: str) -> List[float]:
+        cands = []
+        seen = set()
+        for val in _extract_fractions(text) + _extract_numbers(text):
+            key = round(val, 8)
+            if key not in seen:
+                seen.add(key)
+                cands.append(val)
+        return cands
 
-    cnum = representative_number(correct_answer)
-    unum = representative_number(user_answer)
+    c_cands = candidates(correct_answer)
+    u_cands = candidates(user_answer)
 
-    if cnum is None or unum is None:
+    if not c_cands or not u_cands:
         return 0.0
 
-    # Tolerancia relativa para decimales (1%) y absoluta mínima
-    tol = max(1e-6, 0.01 * max(abs(cnum), abs(unum), 1))
-    return 1.0 if abs(cnum - unum) <= tol else 0.0
+    best_rel = 1e9
+    for c in c_cands:
+        for u in u_cands:
+            rel = abs(c - u) / max(abs(c), abs(u), 1)
+            best_rel = min(best_rel, rel)
+
+    if best_rel <= 0.02:
+        return 1.0
+    if best_rel <= 0.10:
+        return max(0.5, 1.0 - (best_rel - 0.02) / 0.08 * 0.5)
+    if best_rel <= 0.25:
+        return max(0.2, 0.5 - (best_rel - 0.10) / 0.15 * 0.3)
+    return 0.0
 
 def extract_concepts(text: str) -> List[str]:
+    """
+    Extrae conceptos combinando:
+    - chunks nominales lematizados (spaCy)
+    - sustantivos y nombres propios individuales (más laxo)
+    - keywords (KeyBERT)
+    - tokens básicos limpiados (fallback)
+    """
     models = EvaluatorModels()
     doc = models.nlp(text)
-    noun_chunks = [chunk.text.lower() for chunk in doc.noun_chunks]
-    # Extraer top 5 keywords
-    keywords = [kw[0] for kw in models.kw_model.extract_keywords(text, top_n=5)]
-    return list(set(noun_chunks + keywords))
+
+    noun_chunks = [_normalize_token(chunk.lemma_) for chunk in doc.noun_chunks]
+    noun_chunks = [t for t in noun_chunks if t and len(t) > 1 and t not in STOPWORDS_ES]
+
+    nouns = [
+        _normalize_token(tok.lemma_)
+        for tok in doc
+        if tok.pos_ in {"NOUN", "PROPN"} and len(tok) > 1
+    ]
+    nouns = [t for t in nouns if t and len(t) > 1 and t not in STOPWORDS_ES]
+
+    keywords = [kw[0] for kw in models.kw_model.extract_keywords(text, top_n=7)]
+    keywords = [_normalize_token(k) for k in keywords if k]
+
+    basic_tokens = _tokenize_basic(text)
+
+    combined = set([t for t in noun_chunks + nouns + keywords + basic_tokens if t])
+    return list(combined)
+
+def _fuzzy_overlap(c1: Iterable[str], c2: Iterable[str], threshold: float = 0.75) -> int:
+    overlap = 0
+    c2_list = list(c2)
+    for a in c1:
+        if any(_fuzzy_match(a, b, threshold) for b in c2_list):
+            overlap += 1
+    return overlap
 
 def concept_coverage(correct_answer: str, user_answer: str) -> float:
     c1 = set(extract_concepts(correct_answer))
     c2 = set(extract_concepts(user_answer))
-    if not c1: 
+    if not c1:
         return 0.0
-    overlap = c1.intersection(c2)
-    return len(overlap) / len(c1)
+
+    exact_overlap = len(c1.intersection(c2))
+    fuzzy_overlap = _fuzzy_overlap(c1, c2, threshold=0.75)
+    overlap = max(exact_overlap, fuzzy_overlap)
+
+    coverage = overlap / len(c1)
+    # Más laxo: pequeño “piso” si hay alguna coincidencia difusa
+    if coverage == 0 and fuzzy_overlap > 0:
+        coverage = min(0.2, fuzzy_overlap / len(c1) + 0.05)
+    return max(0.0, min(1.0, coverage))
 
 def reasoning_structure_score(answer: str) -> float:
     score = 0.0
     ans = answer.lower()
     
-    # 1. Conectores Lógicos (Argumentación)
     logical_connectors = ["por lo tanto", "entonces", "así que", "porque", "debido a", "consecuentemente", "implica"]
     if any(c in ans for c in logical_connectors): score += 0.25
 
-    # 2. Notación Matemática / Técnica
     math_indicators = ["e(", "σ", "sum", "∑", "1/", "recurrencia", "esperanza", "integral", "derivada", "^"]
     if any(m in ans for m in math_indicators): score += 0.25
 
-    # 3. Estructura Secuencial (Pasos)
     step_indicators = ["1.", "2.", "primero", "luego", "finalmente", "paso"]
     if any(s in ans for s in step_indicators) or "\n" in answer: score += 0.25
 
-    # 4. Definición de variables o casos
     def_indicators = ["sea", "definimos", "consideremos", "supongamos", "dado que"]
     if any(d in ans for d in def_indicators): score += 0.25
 
     return min(score, 1.0)
 
 def final_hybrid_score(sem: float, num: float, concepts: float, reasoning: float) -> float:
-    # Ponderación personalizada para problemas cuantitativos
-    return (
-        0.00 * sem +       # Similitud pura (menos peso en mates)
-        1.00 * num +       # Exactitud numérica (Crucial)
-        0.00 * concepts +  # Uso de terminología correcta
-        0.00 * reasoning   # El proceso lógico es lo más importante
+    """
+    Ponderación:
+    - Similitud semántica (15%)
+    - Precisión numérica (60%)
+    - Cobertura conceptual / terminología (10%)
+    - Razonamiento estructurado (15%)
+    """
+    score = (
+        0.15 * sem +
+        0.60 * num +
+        0.10 * concepts +
+        0.15 * reasoning
     )
+    return max(0.0, min(1.0, score))
 
 def evaluate_full(correct_answer: str, user_answer: str) -> Dict[str, Any]:
     """
