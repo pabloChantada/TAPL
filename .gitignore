@@ -211,4 +211,4 @@ __marimo__/
 /src/database/dev-v1.1.json
 /src/database/chroma_db_*/
 /src/database/chroma_db/
-
+dump.rdb

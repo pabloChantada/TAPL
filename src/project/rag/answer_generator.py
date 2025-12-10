@@ -93,6 +93,7 @@ class AnswerGenerator:
         - NO des la respuesta directa.
         - Orienta al usuario sobre qué concepto teórico debería recordar o qué fórmula aplicar.
         - Usa un tono alentador.
+        - Responde unicamente con la pista, si añades introducciones o conclusiones, que sean muy breves.
         """
 
         try:

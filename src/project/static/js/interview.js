@@ -1,4 +1,4 @@
-
+// Interview Chatbot Component - v1.3
 const { useState, useEffect, useRef } = React;
 
 // Iconos SVG simples
@@ -88,6 +88,14 @@ const InterviewChatbot = () => {
     }, []);
 
     const startInterview = async () => {
+        // Prevenir múltiples llamadas
+        if (interviewStarted || isGenerating || sessionId) {
+            console.log('Entrevista ya iniciada, ignorando clic duplicado');
+            return;
+        }
+        
+        setIsGenerating(true);
+        
         try {
             const response = await fetch('/api/interview/start', {
                 method: 'POST',
@@ -118,13 +126,22 @@ const InterviewChatbot = () => {
         } catch (error) {
             console.error('Error al iniciar entrevista:', error);
             alert(`Error al iniciar la entrevista: ${error.message}`);
+            setIsGenerating(false);
+            setInterviewStarted(false);
         }
     };
 
     const handleSubmit = async () => {
         if (!currentInput.trim() || isGenerating) return;
 
-        const currentQuestion = messages[messages.length - 1];
+        // Buscar la última pregunta válida en el historial (no user-action ni hint)
+        const currentQuestion = [...messages].reverse().find(m => m.questionNumber && m.type === 'bot' && !m.isAck && !m.isFinal);
+        
+        if (!currentQuestion || !currentQuestion.questionNumber) {
+            console.error('No se encontró pregunta válida para responder');
+            return;
+        }
+        
         console.log('Enviando respuesta para pregunta:', currentQuestion.questionNumber);
 
         const userMessage = {
@@ -251,9 +268,15 @@ const InterviewChatbot = () => {
                 return;
             }
 
+            // Limpiar el texto para mostrar solo la pregunta
+            const raw = data.question_text || '';
+            const questionOnly = raw.includes('Respuesta:')
+                ? raw.split('Respuesta:')[0].replace(/Pregunta:\s*/i, '').trim()
+                : raw.replace(/Pregunta:\s*/i, '').trim();
+
             const question = {
                 type: 'bot',
-                text: data.question_text,
+                text: questionOnly,
                 timestamp: new Date(),
                 questionNumber: data.question_number
             };
@@ -272,6 +295,8 @@ const InterviewChatbot = () => {
             setIsGenerating(false);
         }
     };
+
+    // [BLOQUE ELIMINADO AQUÍ: El código duplicado de generateNextQuestion y el "};" extra se borraron]
 
     const handleRequestHint = async () => {
         if (requestingHint || isGenerating) return;
@@ -367,7 +392,7 @@ const InterviewChatbot = () => {
                             <div className="flex gap-1">
                                 {Array.from({ length: totalQuestions }).map((_, i) => (
                                     <div
-                                        key={i} // <-- antes usaba dataset.id (no existe en este scope)
+                                        key={i}
                                         className={`w-8 h-1 rounded-full transition-all ${i < questionCount ? 'bg-green-300' : 'bg-indigo-300'}`}
                                     />
                                 ))}
@@ -440,9 +465,10 @@ const InterviewChatbot = () => {
 
                             <button
                                 onClick={startInterview}
-                                className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:scale-105 transition-all"
+                                disabled={isGenerating || interviewStarted}
+                                className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                             >
-                                Comenzar Entrevista
+                                {isGenerating ? 'Iniciando...' : 'Comenzar Entrevista'}
                             </button>
                         </div>
                     ) : (
@@ -575,4 +601,3 @@ const InterviewChatbot = () => {
 // Renderizar la aplicación
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<InterviewChatbot />);
-
