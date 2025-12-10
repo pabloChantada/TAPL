@@ -115,5 +115,5 @@ Genera el feedback AHORA en español.
             return text
 
         except Exception as e:
-            logger.exception(f"Error generando feedback con {self.provider}")
+            logger.exception(f"Error generando feedback con {self.provider}: {e}")
             return "Ocurrió un error generando el feedback."

@@ -90,6 +90,10 @@ class UserAnswer(BaseModel):
     question_text: str
     answer_text: str
 
+class HintRequest(BaseModel):
+    session_id: str
+    question_number: int
+
 # --- HELPERS REDIS ---
 def get_session(session_id: str):
     data = redis_client.get(f"session:{session_id}")
@@ -283,6 +287,39 @@ async def save_answer(answer: UserAnswer, background_tasks: BackgroundTasks):
         "message": "Respuesta recibida. Evaluando en segundo plano.",
         "completed": completed
     })
+
+@app.post("/api/interview/hint")
+async def get_hint(payload: HintRequest):
+    session_id = payload.session_id
+    
+    # Validaciones básicas
+    session = get_session(session_id)
+    if not session:
+        return JSONResponse(status_code=404, content={"error": "Sesión no encontrada"})
+    
+    # Recuperar la pregunta actual de la "base de datos" en memoria/redis
+    # Nota: Si usas Redis, asegúrate de usar get_questions_map(session_id)
+    # Si estás en local con workers=1 (memoria), usa el diccionario:
+    
+    # Lógica compatible con ambos (Redis/Memoria según tu configuración actual):
+    try:
+        q_map = get_questions_map(session_id)
+        q_data = q_map.get(str(payload.question_number))
+
+        if not q_data:
+            return JSONResponse(status_code=400, content={"error": "Pregunta no encontrada"})
+
+        # Generar la pista
+        hint = answer_generator.generate_hint(
+            question=q_data["question_text"], 
+            correct_answer=q_data["correct_answer"]
+        )
+        
+        return JSONResponse({"hint": hint})
+
+    except Exception as e:
+        logger.error(f"Error en endpoint hint: {e}")
+        return JSONResponse(status_code=500, content={"error": "Error generando pista"})
 
 @app.get("/api/interview/results/{session_id}")
 async def get_results_api(session_id: str):

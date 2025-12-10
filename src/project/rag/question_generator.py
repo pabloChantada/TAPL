@@ -68,7 +68,7 @@ class QuestionGenerator:
             except Exception as e:
                 logger.error(f"[QuestionGenerator] Error cargando dataset '{dataset_type}': {e}")
 
-    def generate_interview_questions(self, num_questions: int = 5, topic: str = "") -> List[str]:
+    def generate_interview_questions(self, num_questions: int = 5) -> List[str]:
         try:
             contexts = self.rag.read_dataset(max_texts=num_questions * 4, sample_random=True)
             questions = []
@@ -95,7 +95,7 @@ class QuestionGenerator:
         if "Pregunta:" in text:
             try:
                 return text.split("Pregunta:")[1].split("Respuesta:")[0].strip()
-            except:
+            except Exception:
                 return text.strip()
         return text.strip()
 
@@ -103,7 +103,7 @@ class QuestionGenerator:
         if "Respuesta:" in text:
             try:
                 return text.split("Respuesta:")[1].strip()
-            except:
+            except Exception:
                 return ""
         return ""
 

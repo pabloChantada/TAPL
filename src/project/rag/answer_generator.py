@@ -77,3 +77,36 @@ class AnswerGenerator:
         except Exception as e:
             logger.error(f"Error limpiando respuesta con {self.provider}: {e}")
             return raw_answer.strip()
+
+    def generate_hint(self, question: str, correct_answer: str) -> str:
+        """
+        Genera una pista sutil basada en la pregunta y la respuesta correcta.
+        """
+        prompt = f"""
+        Actúa como un profesor amable. El estudiante está atascado en esta pregunta de entrevista.
+        
+        PREGUNTA: "{question}"
+        RESPUESTA CORRECTA (para tu referencia, NO LA REVELES): "{correct_answer}"
+        
+        Tu tarea:
+        - Da una pista breve (máximo 2 frases).
+        - NO des la respuesta directa.
+        - Orienta al usuario sobre qué concepto teórico debería recordar o qué fórmula aplicar.
+        - Usa un tono alentador.
+        """
+
+        try:
+            if self.provider in ["DEEPSEEK", "GROQ"]:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.7, # Un poco más creativo para las pistas
+                    max_tokens=150
+                )
+                return response.choices[0].message.content.strip()
+            else:
+                response = self.model.generate_content(prompt)
+                return response.text.strip()
+        except Exception as e:
+            logger.error(f"Error generando pista con {self.provider}: {e}")
+            return "Piensa en los conceptos básicos relacionados con el tema de la pregunta."

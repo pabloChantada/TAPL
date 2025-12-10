@@ -45,6 +45,15 @@ const CircleIcon = () => (
     </svg>
 );
 
+const LightbulbIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="9" y1="18" x2="15" y2="18"></line>
+        <line x1="10" y1="22" x2="14" y2="22"></line>
+        <path d="M15.09 14c.18-.98.18-2.02 0-3-.39-1.67-1.61-3-3.09-3.5-.49-.17-1-.26-1.5-.26-.5 0-1 .09-1.5.26-1.48.5-2.7 1.83-3.09 3.5-.18.98-.18 2.02 0 3 .39 1.67 1.61 3 3.09 3.5.49.17 1 .26 1.5.26.5 0 1-.09 1.5-.26 1.48-.5 2.7-1.83 3.09-3.5z"></path>
+        <circle cx="12" cy="5" r="3"></circle>
+    </svg>
+);
+
 // Componente principal
 const InterviewChatbot = () => {
     const [messages, setMessages] = useState([]);
@@ -57,7 +66,9 @@ const InterviewChatbot = () => {
     const [selectedDataset, setSelectedDataset] = useState('squad');
     const [datasets, setDatasets] = useState([]);
     const messagesEndRef = useRef(null);
-
+    // Nuevo estado para controlar si se está pidiendo una pista para evitar spam
+    const [requestingHint, setRequestingHint] = useState(false);
+    
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
@@ -168,7 +179,7 @@ const InterviewChatbot = () => {
                 setMessages(prev => [...prev, finalMsg]);
 
                 setTimeout(() => {
-                    window.location.href = `/results/${sessionId}`;
+                    globalThis.location.href = `/results/${sessionId}`;
                 }, 2000);
             } else {
                 setTimeout(() => generateNextQuestion(sessionId), 800);
@@ -204,13 +215,13 @@ const InterviewChatbot = () => {
                 let errText = `Error HTTP: ${response.status}`;
                 try {
                     const errData = await response.json();
-                    if (errData && errData.details) {
+                    if (errData?.details) {
                         errText = `No fue posible generar la pregunta: ${errData.details}`;
-                    } else if (errData && errData.error) {
+                    } else if (errData?.error) {
                         errText = `Error: ${errData.error}`;
                     }
                 } catch (e) {
-                    // no JSON, mantenemos errText
+                    console.error('Error parsing JSON response:', e);
                 }
 
                 const errorMsg = {
@@ -236,7 +247,7 @@ const InterviewChatbot = () => {
                 setMessages(prev => [...prev, finalMsg]);
 
                 setTimeout(() => {
-                    window.location.href = `/results/${sessionId}`;
+                    globalThis.location.href = `/results/${sessionId}`;
                 }, 2000);
                 return;
             }
@@ -263,6 +274,48 @@ const InterviewChatbot = () => {
         }
     };
 
+    const handleRequestHint = async () => {
+        if (requestingHint || isGenerating) return;
+        
+        const currentQuestion = messages[messages.length - 1];
+        if (!currentQuestion?.questionNumber) return;
+
+        setRequestingHint(true);
+        
+        // Añadir mensaje visual de "pidiendo pista..."
+        setMessages(prev => [...prev, {
+            type: 'user-action', // Tipo especial interno
+            text: '💡 Solicitando una pista...',
+            timestamp: new Date()
+        }]);
+
+        try {
+            const response = await fetch('/api/interview/hint', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    question_number: currentQuestion.questionNumber
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.hint) {
+                const hintMsg = {
+                    type: 'hint', // Nuevo tipo para estilizar diferente
+                    text: data.hint,
+                    timestamp: new Date()
+                };
+                setMessages(prev => [...prev, hintMsg]);
+            }
+        } catch (error) {
+            console.error('Error pidiendo pista:', error);
+        } finally {
+            setRequestingHint(false);
+        }
+    };
+    
     const handleKeyPress = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -287,7 +340,7 @@ const InterviewChatbot = () => {
                             <div className="flex gap-1">
                                 {Array.from({ length: totalQuestions }).map((_, i) => (
                                     <div
-                                        key={i}
+                                        key={dataset.id}
                                         className={`w-8 h-1 rounded-full transition-all ${i < questionCount ? 'bg-green-300' : 'bg-indigo-300'
                                             }`}
                                     />
@@ -384,13 +437,22 @@ const InterviewChatbot = () => {
                                     <div
                                         className={`max-w-2xl rounded-2xl p-4 shadow-md ${msg.type === 'user'
                                             ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white'
-                                            : msg.isAck
-                                                ? 'bg-green-50 border border-green-200 text-green-800'
-                                                : msg.isFinal
-                                                    ? 'bg-purple-50 border border-purple-200 text-purple-900'
-                                                    : 'bg-white border border-gray-200 text-gray-800'
+                                            : msg.type === 'hint'
+                                                ? 'bg-yellow-50 border border-yellow-200 text-yellow-900'
+                                                : msg.type === 'user-action'
+                                                    ? 'bg-gray-100 text-gray-500 text-sm italic'
+                                                    : msg.isAck
+                                                        ? 'bg-green-50 border border-green-200 text-green-800'
+                                                        : msg.isFinal
+                                                            ? 'bg-purple-50 border border-purple-200 text-purple-900'
+                                                            : 'bg-white border border-gray-200 text-gray-800'
                                             }`}
                                     >
+                                        {msg.type === 'hint' && (
+                                            <div className="flex items-center gap-2 mb-2 text-sm font-bold text-yellow-600">
+                                                <LightbulbIcon /> Pista
+                                            </div>
+                                        )}
                                         {msg.questionNumber && (
                                             <div className="flex items-center gap-2 mb-2 text-sm font-semibold text-indigo-600">
                                                 <CircleIcon />
@@ -445,6 +507,14 @@ const InterviewChatbot = () => {
                                 className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                 disabled={isGenerating}
                             />
+                            <button
+                                onClick={handleRequestHint}
+                                disabled={isGenerating || requestingHint}
+                                className="p-3 bg-yellow-100 text-yellow-600 rounded-xl hover:bg-yellow-200 transition-colors disabled:opacity-50"
+                                title="Pedir una pista"
+                            >
+                                <LightbulbIcon />
+                            </button>
                             <button
                                 onClick={handleSubmit}
                                 disabled={!currentInput.trim() || isGenerating}
