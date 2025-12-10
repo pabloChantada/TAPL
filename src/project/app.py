@@ -81,7 +81,7 @@ class Question(BaseModel):
 
 class InterviewSession(BaseModel):
     session_id: Optional[str] = None
-    total_questions: int = 2 
+    total_questions: int = 3
     dataset_type: str = "natural_questions"
 
 class UserAnswer(BaseModel):
@@ -167,14 +167,17 @@ async def get_available_datasets():
 async def start_interview(session: InterviewSession):
     session_id = str(uuid.uuid4())
 
+    # Configurar dataset
     if session.dataset_type != question_generator.dataset_type:
         try:
-            question_generator.set_dataset(session.dataset_type)
+            # Ahora usamos session.total_questions
+            question_generator.set_dataset(session.dataset_type) 
         except Exception as e:
             return JSONResponse(status_code=500, content={"error": str(e)})
 
+    # Inicializar estado en Redis
     session_data = {
-        "total_questions": session.total_questions,
+        "total_questions": session.total_questions, # Usa el valor del cliente
         "current_question": 0,
         "started_at": str(os.times()),
         "dataset_type": session.dataset_type,

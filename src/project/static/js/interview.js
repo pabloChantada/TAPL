@@ -1,7 +1,7 @@
 const { useState, useEffect, useRef } = React;
 
 /* =========================================
-   COMPONENTES UI (Pequeños helpers)
+   COMPONENTES UI
    ========================================= */
 const LoadingIndicator = ({ message }) => (
     <div className="flex flex-col items-center justify-center p-6 bg-indigo-50 rounded-2xl mx-auto w-full max-w-md animate-pulse border border-indigo-100">
@@ -22,7 +22,7 @@ const ProcessingScreen = () => (
         <div>
             <h2 className="text-2xl font-bold text-gray-800">Analizando Entrevista</h2>
             <p className="text-gray-600 mt-2 max-w-md mx-auto">
-                Estamos calculando tus métricas de rendimiento (BERTScore, ROUGE, BLEU) y generando el feedback detallado.
+                Estamos calculando tus métricas de rendimiento y generando el feedback detallado.
             </p>
         </div>
         <div className="w-full max-w-xs bg-gray-200 rounded-full h-2.5 dark:bg-gray-300 overflow-hidden">
@@ -44,11 +44,12 @@ const InterviewChatbot = () => {
     
     // Estados de Flujo
     const [interviewStarted, setInterviewStarted] = useState(false);
-    const [isFinalizing, setIsFinalizing] = useState(false); // NUEVO: Controla la pantalla final
+    const [isFinalizing, setIsFinalizing] = useState(false);
     const [sessionId, setSessionId] = useState(null);
     const [questionCount, setQuestionCount] = useState(0);
-    const [totalQuestions, setTotalQuestions] = useState(1);
-    const [selectedDataset, setSelectedDataset] = useState('squad');
+    const [totalQuestions, setTotalQuestions] = useState(3);
+    const [desiredQuestions, setDesiredQuestions] = useState(3);
+    const [selectedDataset, setSelectedDataset] = useState('coachquant');
     const [datasets, setDatasets] = useState([]);
     const [requestingHint, setRequestingHint] = useState(false);
     const [hintUsedForQuestion, setHintUsedForQuestion] = useState(null);
@@ -60,7 +61,7 @@ const InterviewChatbot = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isGenerating]);
 
-    // Cargar Datasets al inicio
+    // Cargar Datasets
     useEffect(() => {
         API.getDatasets()
             .then(data => setDatasets(data.datasets))
@@ -72,7 +73,10 @@ const InterviewChatbot = () => {
 
     // --- ACCIONES ---
 
-    const restartInterview = () => {
+    const restartInterview = async () => {
+        if (sessionId) {
+            await fetch(`/api/interview/session/${sessionId}`, { method: 'DELETE' }).catch(e => console.error(e));
+        }
         setMessages([]);
         setCurrentInput('');
         setIsGenerating(false);
@@ -80,6 +84,7 @@ const InterviewChatbot = () => {
         setIsFinalizing(false);
         setSessionId(null);
         setQuestionCount(0);
+        setTotalQuestions(desiredQuestions);
         setHintUsedForQuestion(null);
         setRequestingHint(false);
     };
@@ -89,9 +94,10 @@ const InterviewChatbot = () => {
         
         setIsGenerating(true);
         setLoadingMessage('Inicializando entrevista...');
+        setTotalQuestions(desiredQuestions);
 
         try {
-            const data = await API.startInterview(1, selectedDataset); // Hardcoded 1 pregunta (según tu código)
+            const data = await API.startInterview(desiredQuestions, selectedDataset);
             
             setSessionId(data.session_id);
             setTotalQuestions(data.total_questions);
@@ -100,11 +106,10 @@ const InterviewChatbot = () => {
             const datasetName = datasets.find(d => d.id === selectedDataset)?.name || selectedDataset;
             addMessage({
                 type: 'bot',
-                text: `¡Hola! Soy tu asistente de entrevista. Te haré una pregunta basada en el dataset ${datasetName}.`
+                text: `¡Hola! Soy tu asistente de entrevista. Te haré ${data.total_questions} preguntas basadas en el dataset ${datasetName}.`
             });
 
             setIsGenerating(false);
-            // Pequeña pausa para naturalidad antes de la pregunta
             setTimeout(() => generateNextQuestion(data.session_id), 800);
         } catch (error) {
             console.error(error);
@@ -115,11 +120,10 @@ const InterviewChatbot = () => {
     };
 
     const generateNextQuestion = async (sid) => {
-        // Si ya completamos, no pedir más
         if (questionCount >= totalQuestions) return;
 
         setIsGenerating(true);
-        setLoadingMessage('Estamos generando tu pregunta...');
+        setLoadingMessage('Gemini está formulando tu pregunta...');
 
         try {
             const data = await API.getNextQuestion(sid);
@@ -129,7 +133,6 @@ const InterviewChatbot = () => {
                 return;
             }
 
-            // Limpieza de texto (RAG a veces devuelve "Pregunta: ...")
             const raw = data.question_text || '';
             const questionText = raw.split(/Respuesta:|Pregunta:\s*/i)[raw.includes('Respuesta:') ? 0 : 1] || raw;
 
@@ -164,30 +167,28 @@ const InterviewChatbot = () => {
             setQuestionCount(currentQuestion.questionNumber);
             addMessage({ type: 'bot', text: data.message || 'Respuesta registrada.', isAck: true });
 
-            // Verificar si terminamos
-            if (currentQuestion.questionNumber >= totalQuestions) {
+            if (data.completed) {
                 handleCompletion(sessionId);
+            } else {
+                // CORRECCIÓN CLAVE: Si no ha terminado, pedimos la siguiente pregunta automáticamente
+                setTimeout(() => {
+                    generateNextQuestion(sessionId);
+                }, 1000); // Pequeña pausa para que el usuario lea "Respuesta registrada"
             }
+
         } catch (error) {
             addMessage({ type: 'bot', text: 'Error al procesar respuesta.', isError: true });
             setIsGenerating(false);
-        } finally {
-            if (currentQuestion.questionNumber < totalQuestions) {
-                setIsGenerating(false);
-            }
-            // Si es la última, isGenerating se queda true hasta que handleCompletion decida
         }
     };
 
     const handleCompletion = (sid) => {
-        // Activamos la pantalla de "Finalizando"
         setIsFinalizing(true);
+        addMessage({ type: 'bot', text: '¡Entrevista completada! Generando reporte...', isFinal: true });
         
-        // Esperamos un momento para asegurar que el usuario vea que terminó
-        // y luego redirigimos. El backend sigue procesando los Batches.
         setTimeout(() => {
             globalThis.location.href = `/results/${sid}`;
-        }, 3500); // Damos 3.5 segundos de "buffer" visual
+        }, 3500); 
     };
 
     const handleRequestHint = async () => {
@@ -211,6 +212,26 @@ const InterviewChatbot = () => {
     };
 
     // Render Helpers
+    const renderQuestionSelector = () => (
+        <div className="w-full max-w-lg space-y-3 p-4 bg-gray-50 rounded-xl border">
+            <label className="block text-sm font-semibold text-gray-700">
+                Número de Preguntas ({desiredQuestions})
+            </label>
+            <div className="flex items-center gap-4">
+                <input
+                    type="range"
+                    min="1"
+                    max="5"
+                    value={desiredQuestions}
+                    onChange={(e) => setDesiredQuestions(parseInt(e.target.value))}
+                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer range-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <span className="font-bold text-lg text-indigo-600 w-8 text-right">{desiredQuestions}</span>
+            </div>
+            <p className="text-xs text-gray-500">Selecciona entre 1 y 5 preguntas para tu evaluación.</p>
+        </div>
+    );
+
     const renderWelcomeScreen = () => (
         <div className="flex flex-col items-center justify-center h-full gap-6 animate-fade-in">
             <div className="text-center space-y-4">
@@ -218,8 +239,10 @@ const InterviewChatbot = () => {
                     <Icons.Bot />
                 </div>
                 <h2 className="text-2xl font-bold text-gray-800">Bienvenido a tu Entrevista</h2>
-                <p className="text-gray-600 max-w-md">Evaluaremos tus competencias con {totalQuestions} pregunta(s).</p>
+                <p className="text-gray-600 max-w-md">Define la dificultad y el número de preguntas para comenzar.</p>
             </div>
+
+            {renderQuestionSelector()}
 
             <div className="w-full max-w-lg space-y-3">
                 <label className="block text-sm font-semibold text-gray-700 text-center">Selecciona el dataset</label>
@@ -251,7 +274,7 @@ const InterviewChatbot = () => {
                 disabled={isGenerating}
                 className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:scale-105 transition-all disabled:opacity-50"
             >
-                {isGenerating ? 'Iniciando...' : 'Comenzar Entrevista'}
+                {isGenerating ? 'Iniciando...' : `Comenzar con ${desiredQuestions} Pregunta(s)`}
             </button>
         </div>
     );
@@ -270,7 +293,7 @@ const InterviewChatbot = () => {
                         </div>
                     </div>
                     {interviewStarted && !isFinalizing && (
-                        <button onClick={restartInterview} className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm">
+                        <button onClick={restartInterview} className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-all">
                             <Icons.Refresh /> Reiniciar
                         </button>
                     )}
@@ -296,7 +319,7 @@ const InterviewChatbot = () => {
                                         'bg-white border border-gray-200 text-gray-800'
                                     }`}>
                                         {msg.type === 'hint' && <div className="flex items-center gap-2 mb-2 font-bold text-yellow-600"><Icons.Lightbulb /> Pista</div>}
-                                        {msg.questionNumber && <div className="flex items-center gap-2 mb-2 text-sm font-semibold text-indigo-600"><Icons.Circle /> Pregunta {msg.questionNumber}</div>}
+                                        {msg.questionNumber && <div className="flex items-center gap-2 mb-2 text-sm font-semibold text-indigo-600"><Icons.Circle /> Pregunta {msg.questionNumber} de {totalQuestions}</div>}
                                         <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                                         <p className="text-xs mt-2 opacity-60 text-right">{msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                                     </div>
@@ -337,24 +360,11 @@ const InterviewChatbot = () => {
                     </div>
                 )}
             </div>
-            
-            {/* Animación CSS para la barra de progreso */}
             <style>{`
-                @keyframes progress-indeterminate {
-                    0% { transform: translateX(-100%); }
-                    50% { transform: translateX(0); }
-                    100% { transform: translateX(100%); }
-                }
-                .animate-progress-indeterminate {
-                    animation: progress-indeterminate 2s infinite linear;
-                }
-                .animate-fade-in {
-                    animation: fadeIn 0.5s ease-out;
-                }
-                @keyframes fadeIn {
-                    from { opacity: 0; transform: translateY(10px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
+                @keyframes progress-indeterminate { 0% { transform: translateX(-100%); } 50% { transform: translateX(0); } 100% { transform: translateX(100%); } }
+                .animate-progress-indeterminate { animation: progress-indeterminate 2s infinite linear; }
+                .animate-fade-in { animation: fadeIn 0.5s ease-out; }
+                @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
             `}</style>
         </div>
     );
