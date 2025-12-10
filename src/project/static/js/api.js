@@ -4,11 +4,11 @@ const API = {
         return res.json();
     },
 
-    startInterview: async (totalQuestions, datasetType) => {
+    startInterview: async (totalQuestions, datasetType, difficultyLevel) => {
         const res = await fetch('/api/interview/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ total_questions: totalQuestions, dataset_type: datasetType })
+            body: JSON.stringify({ total_questions: totalQuestions, dataset_type: datasetType, difficulty_level: difficultyLevel })
         });
         if (!res.ok) {
             const data = await res.json();

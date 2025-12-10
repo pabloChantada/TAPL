@@ -83,6 +83,7 @@ class InterviewSession(BaseModel):
     session_id: Optional[str] = None
     total_questions: int = 3
     dataset_type: str = "natural_questions"
+    difficulty_level: str = "Facil" # Facil | Medio | Dificil
 
 class UserAnswer(BaseModel):
     session_id: str
@@ -177,10 +178,12 @@ async def start_interview(session: InterviewSession):
 
     # Inicializar estado en Redis
     session_data = {
-        "total_questions": session.total_questions, # Usa el valor del cliente
+        "total_questions": session.total_questions,
         "current_question": 0,
         "started_at": str(os.times()),
         "dataset_type": session.dataset_type,
+        "current_difficulty": session.difficulty_level.title(),
+        "streak_correctas": 0
     }
     save_session(session_id, session_data)
     save_answers(session_id, [])
@@ -191,6 +194,7 @@ async def start_interview(session: InterviewSession):
         "message": "Sesión iniciada",
         "total_questions": session.total_questions,
         "dataset_type": session.dataset_type,
+        "difficulty_level": session.difficulty_level.title(),
     })
 
 @app.get("/api/interview/question/{session_id}")
@@ -204,9 +208,13 @@ async def get_next_question(session_id: str):
         return JSONResponse({"completed": True, "message": "Entrevista completada"})
 
     try:
-        raw_question, raw_answer = question_generator.generate_single_question_with_answer()
+        target_level = session.get("current_difficulty", "Facil")
+        raw_question, raw_answer, detected_level = question_generator.generate_single_question_with_answer(
+            target_difficulty=target_level
+        )
         if not raw_question:
             raw_question, raw_answer = "Error generando pregunta.", ""
+            detected_level = target_level
 
         clean_question = raw_question
         clean_answer = answer_generator.clean_answer(raw_answer)
@@ -214,7 +222,8 @@ async def get_next_question(session_id: str):
         q_map = get_questions_map(session_id)
         q_map[str(current_q + 1)] = {
             "question_text": clean_question,
-            "correct_answer": clean_answer
+            "correct_answer": clean_answer,
+            "difficulty": detected_level
         }
         save_questions_map(session_id, q_map)
 
@@ -223,7 +232,8 @@ async def get_next_question(session_id: str):
             "question_number": current_q + 1,
             "total_questions": session["total_questions"],
             "question_text": clean_question,
-            "correct_answer": clean_answer
+            "correct_answer": clean_answer,
+            "difficulty": detected_level
         })
 
     except Exception as e:
@@ -241,38 +251,74 @@ async def save_answer(answer: UserAnswer, background_tasks: BackgroundTasks):
     if not q_data:
         return JSONResponse(status_code=400, content={"error": "Datos de pregunta perdidos"})
 
+    # Evaluamos inline para tener métricas inmediatas
+    metrics_now = evaluate_full(
+        correct_answer=q_data["correct_answer"],
+        user_answer=answer.answer_text
+    )
+
     new_answer = {
         "question_number": answer.question_number,
         "question": answer.question_text,
         "answer": answer.answer_text,
         "correct_answer": q_data["correct_answer"],
+        "difficulty": q_data.get("difficulty", session.get("current_difficulty", "Facil")),
         "timestamp": str(os.times()),
         "feedback": None,
         "explanation": None,
-        "metrics": None # Inicializamos en None, el background worker lo llenará
+        "metrics": metrics_now
     }
 
     answers_list = get_answers(answer.session_id)
     answers_list.append(new_answer)
     save_answers(answer.session_id, answers_list)
 
+    # --- LÓGICA DE PROGRESIÓN DE DIFICULTAD ---
+    final_score = metrics_now.get("final_score", 0)
+    curr_level = session.get("current_difficulty", "Facil")
+    streak = session.get("streak_correctas", 0)
+    
+    # Solo ajustamos dificultad si NO es la última pregunta
+    if session["current_question"] < session["total_questions"]:
+        
+        # Promoción: Requiere nota alta (>= 0.85)
+        if final_score >= 0.85:
+            streak += 1
+        else:
+            streak = 0 # Reiniciar racha si falla o es mediocre
+
+        # Subir nivel tras 2 aciertos seguidos
+        if streak >= 2:
+            if curr_level == "Facil":
+                curr_level = "Medio"
+            elif curr_level == "Medio":
+                curr_level = "Dificil"
+            streak = 0  # reset tras subir
+
+        # Bajada inmediata con fallo claro (< 0.45)
+        if final_score < 0.45:
+            if curr_level == "Dificil":
+                curr_level = "Medio"
+            elif curr_level == "Medio":
+                curr_level = "Facil"
+            streak = 0
+            
+        logger.info(f"Score: {final_score:.2f} | Nueva Dificultad: {curr_level} | Streak: {streak}")
+    else:
+        logger.info("Última pregunta respondida. No se ajusta dificultad.")
+
+    session["current_difficulty"] = curr_level
+    session["streak_correctas"] = streak
     session["current_question"] += 1
     save_session(answer.session_id, session)
 
-    # Lanzar tarea pesada
-    background_tasks.add_task(
-        process_evaluation_task,
-        answer.session_id,
-        answer.question_number,
-        answer.answer_text,
-        q_data["correct_answer"]
-    )
-
     completed = session["current_question"] >= session["total_questions"]
+    
     return JSONResponse({
         "success": True,
         "message": "Respuesta recibida.",
-        "completed": completed
+        "completed": completed,
+        "next_difficulty": curr_level
     })
 
 @app.post("/api/interview/hint")

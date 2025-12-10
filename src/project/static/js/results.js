@@ -132,6 +132,11 @@ const QuestionResultCard = ({ answerData, index, sessionId, defaultOpen }) => {
                 <div className="flex-1">
                     <h3 className="text-lg font-bold text-gray-800 mb-1 flex items-center gap-2">
                         Pregunta {answerData.question_number}
+                        {answerData.difficulty && (
+                            <span className="px-2 py-0.5 text-xs rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700">
+                                Nivel: {answerData.difficulty}
+                            </span>
+                        )}
                         <span className="text-xs font-normal text-gray-500 bg-white border px-2 py-0.5 rounded-full hidden sm:inline-block">
                             {isCardOpen ? 'Desplegado' : 'Click para ver detalles'}
                         </span>
@@ -206,12 +211,20 @@ const QuestionResultCard = ({ answerData, index, sessionId, defaultOpen }) => {
                             <div className="space-y-6">
                                 <BooleanMetric label="Cálculo Exacto" value={m.numeric_score === 1.0} />
                                 <div>
-                                    <ProgressBar value={m.reasoning_score} label="Razonamiento" color="bg-blue-500" />
+                                    <ProgressBar value={m.numeric_score || 0} label="Precisión Matemática" color="bg-green-500" />
+                                    <p className="text-xs text-gray-400 mt-1">Coincidencia del resultado numérico.</p>
+                                </div>
+                                <div>
+                                    <ProgressBar value={m.reasoning_score || 0} label="Razonamiento" color="bg-blue-500" />
                                     <p className="text-xs text-gray-400 mt-1">Estructura lógica y pasos.</p>
                                 </div>
                                 <div>
-                                    <ProgressBar value={m.concept_score} label="Conceptos" color="bg-purple-500" />
+                                    <ProgressBar value={m.concept_score || 0} label="Conceptos" color="bg-purple-500" />
                                     <p className="text-xs text-gray-400 mt-1">Vocabulario técnico.</p>
+                                </div>
+                                <div>
+                                    <ProgressBar value={m.semantic_score || 0} label="Similitud Semántica" color="bg-teal-500" />
+                                    <p className="text-xs text-gray-400 mt-1">Proximidad semántica al enunciado oficial.</p>
                                 </div>
                             </div>
                             <div className="mt-8 pt-6 border-t border-gray-200">

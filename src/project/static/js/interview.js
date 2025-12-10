@@ -53,6 +53,8 @@ const InterviewChatbot = () => {
     const [datasets, setDatasets] = useState([]);
     const [requestingHint, setRequestingHint] = useState(false);
     const [hintUsedForQuestion, setHintUsedForQuestion] = useState(null);
+    const [startingDifficulty, setStartingDifficulty] = useState('Facil');
+    const [currentDifficulty, setCurrentDifficulty] = useState('Facil');
     
     const messagesEndRef = useRef(null);
 
@@ -87,6 +89,7 @@ const InterviewChatbot = () => {
         setTotalQuestions(desiredQuestions);
         setHintUsedForQuestion(null);
         setRequestingHint(false);
+        setCurrentDifficulty(startingDifficulty);
     };
 
     const startInterview = async () => {
@@ -97,16 +100,17 @@ const InterviewChatbot = () => {
         setTotalQuestions(desiredQuestions);
 
         try {
-            const data = await API.startInterview(desiredQuestions, selectedDataset);
+            const data = await API.startInterview(desiredQuestions, selectedDataset, startingDifficulty);
             
             setSessionId(data.session_id);
             setTotalQuestions(data.total_questions);
             setInterviewStarted(true);
+            setCurrentDifficulty(data.difficulty_level || startingDifficulty);
 
             const datasetName = datasets.find(d => d.id === selectedDataset)?.name || selectedDataset;
             addMessage({
                 type: 'bot',
-                text: `¡Hola! Soy tu asistente de entrevista. Te haré ${data.total_questions} preguntas basadas en el dataset ${datasetName}.`
+                text: `¡Hola! Soy tu asistente de entrevista. Te haré ${data.total_questions} preguntas basadas en el dataset ${datasetName}. Nivel inicial: ${data.difficulty_level || startingDifficulty}.`
             });
 
             setIsGenerating(false);
@@ -139,8 +143,10 @@ const InterviewChatbot = () => {
             addMessage({
                 type: 'bot',
                 text: questionText.trim(),
-                questionNumber: data.question_number
+                questionNumber: data.question_number,
+                difficulty: data.difficulty || currentDifficulty
             });
+            setCurrentDifficulty(data.difficulty || currentDifficulty);
         } catch (error) {
             addMessage({ type: 'bot', text: error.message, isError: true });
         } finally {
@@ -167,10 +173,12 @@ const InterviewChatbot = () => {
             setQuestionCount(currentQuestion.questionNumber);
             addMessage({ type: 'bot', text: data.message || 'Respuesta registrada.', isAck: true });
 
+            if (data.next_difficulty) setCurrentDifficulty(data.next_difficulty);
+
             if (data.completed) {
                 handleCompletion(sessionId);
             } else {
-                // CORRECCIÓN CLAVE: Si no ha terminado, pedimos la siguiente pregunta automáticamente
+                // Si no ha terminado, pedimos la siguiente pregunta automáticamente
                 setTimeout(() => {
                     generateNextQuestion(sessionId);
                 }, 1000); // Pequeña pausa para que el usuario lea "Respuesta registrada"
@@ -243,6 +251,23 @@ const InterviewChatbot = () => {
             </div>
 
             {renderQuestionSelector()}
+
+            <div className="w-full max-w-lg space-y-3">
+                <label className="block text-sm font-semibold text-gray-700 text-center">Nivel inicial</label>
+                <div className="grid grid-cols-3 gap-2">
+                    {['Facil','Medio','Dificil'].map(level => (
+                        <button
+                            key={level}
+                            onClick={() => setStartingDifficulty(level)}
+                            className={`p-3 rounded-lg border text-sm font-semibold ${
+                                startingDifficulty === level ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-700'
+                            }`}
+                        >
+                            {level}
+                        </button>
+                    ))}
+                </div>
+            </div>
 
             <div className="w-full max-w-lg space-y-3">
                 <label className="block text-sm font-semibold text-gray-700 text-center">Selecciona el dataset</label>
@@ -319,7 +344,14 @@ const InterviewChatbot = () => {
                                         'bg-white border border-gray-200 text-gray-800'
                                     }`}>
                                         {msg.type === 'hint' && <div className="flex items-center gap-2 mb-2 font-bold text-yellow-600"><Icons.Lightbulb /> Pista</div>}
-                                        {msg.questionNumber && <div className="flex items-center gap-2 mb-2 text-sm font-semibold text-indigo-600"><Icons.Circle /> Pregunta {msg.questionNumber} de {totalQuestions}</div>}
+                                        {msg.questionNumber && (
+                                            <div className="flex flex-wrap items-center gap-2 mb-2 text-sm font-semibold text-indigo-600">
+                                                <Icons.Circle /> Pregunta {msg.questionNumber} de {totalQuestions}
+                                                <span className="px-2 py-0.5 rounded-full text-xs border bg-indigo-50 border-indigo-200 text-indigo-700">
+                                                    Nivel: {msg.difficulty || currentDifficulty}
+                                                </span>
+                                            </div>
+                                        )}
                                         <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                                         <p className="text-xs mt-2 opacity-60 text-right">{msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                                     </div>
