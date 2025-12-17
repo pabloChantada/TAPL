@@ -1,0 +1,550 @@
+\documentclass[12pt, a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{geometry}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage{float}
+\usepackage{longtable}
+\usepackage{setspace} 
+\usepackage[titletoc]{appendix} 
+
+% Configuración de márgenes
+\geometry{top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm}
+
+% Configuración para código
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+\lstset{style=mystyle}
+
+\begin{document}
+
+% -------------------------------------------------------------------
+% PORTADA
+% -------------------------------------------------------------------
+\begin{titlepage}
+    \centering
+    % Logo de la universidad (Descomenta y ajusta el nombre del archivo si tienes uno)
+    % \includegraphics[width=0.4\textwidth]{logo_universidad.png} 
+    \vspace{1cm}
+    
+    {\huge\bfseries TAPL: Técnicas Avanzadas de Procesamiento de Lenguaje \par}
+    \vspace{0.5cm}
+    {\Large\itshape Sistema Inteligente de Evaluación y Preparación de Entrevistas Técnicas \par}
+    
+    \vspace{3cm}
+    
+    \textbf{Autor:} \par
+    Pablo Chantada Saborido (pablo.chantada@udc.es) \par
+    \vspace{0.5cm}
+    
+    \vfill
+    
+    {\large \today \par} % Fecha actual
+\end{titlepage}
+
+% -------------------------------------------------------------------
+% ÍNDICE
+% -------------------------------------------------------------------
+\newpage
+\tableofcontents
+\newpage
+
+% -------------------------------------------------------------------
+% SECCIÓN 1: INTRODUCCIÓN
+% -------------------------------------------------------------------
+\section{Introducción y Visión General}
+
+\subsection{Resumen}
+
+TAPL (Técnicas Avanzadas de Procesamiento de Lenguaje) consiste en un sistema de evaluación inteligente que, mediante el uso de Large Language Models (LLMs) \cite{openai2023gpt4,gemini2024report,groq2024}, examina al usuario siguiendo métricas específicas de procesamiento de lenguaje natural. El objetivo principal es crear un sistema que permita al usuario prepararse eficazmente para entrevistas técnicas, exámenes o cualquier tipo de evaluación compleja, ofreciendo un entorno de simulación realista y retroalimentación instantánea.
+
+\subsection{Implementación del Sistema}
+Para facilitar el aprendizaje y diferenciarse de un sistema de preguntas y respuestas (QA) básico, TAPL implementa características avanzadas de evaluación y adaptación:
+
+\begin{itemize}
+    \item \textbf{Dificultad Adaptativa}: Al comienzo de la entrevista, el usuario selecciona un nivel de dificultad inicial. A medida que avanza la sesión, el sistema ajusta dinámicamente (Figura \ref{}) la complejidad de las preguntas de acuerdo con el rendimiento del usuario en tiempo real (promoción ante el éxito y refuerzo ante el fallo).
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=1\linewidth]{diagrams/dificulty_evolution.png}
+        \caption{Cambio de la dificultad a lo largo}
+        \label{fig:placeholder}
+    \end{figure}
+    \item \textbf{Sistema de Evaluación Híbrido}: El motor de evaluación descompone la respuesta del usuario en cuatro dimensiones (Figura \ref{fig:piechart}) fundamentales para calcular un puntaje de precisión integral:
+        \begin{itemize}
+            \item \textbf{Similitud Semántica}: Utiliza modelos de \textit{embeddings} (como \texttt{all-mpnet-base-v2} \cite{sentencebert,sentence-transformers-lib}) para validar que el significado global y el contexto de la respuesta coincidan con la solución esperada, penalizando desviaciones semánticas independientemente de la redacción exacta.
+            \item \textbf{Validación Numérica y Simbólica}: Emplea procesamiento simbólico (mediante \texttt{SymPy} \cite{sympy}) y expresiones regulares para verificar la exactitud matemática, aplicando tolerancias al redondeo y validando la lógica cuantitativa.
+            \item \textbf{Cobertura Conceptual}: Realiza un análisis de densidad terminológica mediante técnicas como \textit{KeyBERT} \cite{keybert} y \textit{spaCy} \cite{spacy} para asegurar la presencia de palabras clave, tecnicismos y conceptos esenciales en la respuesta.
+            \item \textbf{Estructura de Razonamiento}: Evalúa la coherencia lógica y la calidad de la exposición a través de la detección de conectores, pasos procedimentales secuenciales e indicadores de formalidad técnica.
+        \end{itemize}
+    
+    La validación númerica supone la mayor parte del rendimiento del sistema. Esto se debe a la dificultad de analizar mediante sistemas puramente sistacticos como de \textit{"correcta"} es una respuesta frente a otra. Por ello, identificamos que si el usuario onsigue la respuesta bien, deberia por lo menos "aprobar" la evaluación. \ref{sec:trabajo_futuro}
+    
+    \item \textbf{Módulo de Teoría con RAG (Retrieval-Augmented Generation)} \cite{rag_survey}: Vinculación del modelo Google Gemini \cite{gemini2024report} con una base de datos bibliográfica. Esto permite generar explicaciones teóricas fundamentadas, donde el usuario puede verificar la fuente original de la información, reduciendo además las alucinaciones del modelo. \footnote{Esta funcionalidad requiere la configuración de la API de GEMINI.}
+    
+    \item \textbf{Interfaz Web Interactiva}: Se proporciona una interfaz web intuitiva y optimizada (Mirar \ref{}) para la gestión de sesiones de entrevista, visualización de métricas en tiempo real y revisión de resultados.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\linewidth]{diagrams/evaluation_chart.png}
+    \caption{Distribución ponderada de las dimensiones de Evaluación}
+    \label{fig:piechart}
+\end{figure}
+
+
+% -------------------------------------------------------------------
+% SECCIÓN 2: ARQUITECTURA DEL SISTEMA
+% -------------------------------------------------------------------
+\section{Arquitectura del Sistema}
+
+El sistema TAPL sigue una arquitectura modular (Figura \ref{fig:arquitectura}), orquestada mediante el framework \textbf{FastAPI} \cite{fastapi}. El diseño prioriza la eficiencia y la experiencia de usuario moviendo las operaciones bloqueantes a tareas en segundo plano (\textit{Background Tasks}). A continuación, se detallan los módulos principales, sus responsabilidades y los flujos de datos.
+
+\subsection{Diagrama de Componentes}
+La arquitectura se divide lógicamente en tres capas: \textit{Frontend}, \textit{Backend} y \textit{Manejo de Datos}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{diagrams/arquitecture.drawio.png}
+    \caption{Diagrama de arquitectura del sistema}
+    \label{fig:arquitectura}
+\end{figure}
+
+
+
+
+\subsection{Descripción de Módulos}
+
+\subsubsection{1. Backend (Controlador Principal)}
+Implementado en \texttt{src/project/app.py}, actúa como el núcleo del sistema, centralizando la lógica de enrutamiento y la orquestación de servicios.
+
+\begin{itemize}
+    \item \textbf{Función:} Gestionar el ciclo de vida de la sesión de entrevista (inicio, progreso, finalización), validar las peticiones HTTP y delegar el procesamiento intensivo a hilos secundarios para evitar latencia en la interfaz.
+    \item \textbf{Entrada:} Peticiones REST \cite{fielding2000rest} (JSON) provenientes del cliente web.
+    \item \textbf{Salida:} Respuestas estructuradas en JSON y renderizado de vistas mediante el motor de plantillas Jinja2 \cite{jinja2}.
+    \item \textbf{Interacción:} Se comunica directamente con \textbf{Redis} \cite{redis} para la gestión de estado y coordina los servicios de RAG y Evaluación.
+\end{itemize}
+
+El sistema gestiona conjuntos de datos (Datasets) predefinidos (como SQuAD \cite{squad} o CoachQuant), los cuales son pre-procesados y vectorizados en una base de datos ChromaDB \cite{chromadb} para optimizar los tiempos de recuperación (véase la Sección \ref{sec:trabajo_futuro}).
+
+\subsubsection{2. Motor de Generación (RAG Service)}
+Ubicado en el paquete \texttt{src/project/rag/}, este módulo implementa la lógica de Recuperación Aumentada (RAG) \cite{rag_survey}. Aunque no es un sistema RAG "clásico" basado en búsqueda semántica, sí comparte la misma filosofía de recuperar contexto desde una base de datos vectorial para guiar al LLM; en este caso, la recuperación se hace mediante muestreo aleatorio, por lo que lo consideramos dentro del mismo abanico de enfoques tipo RAG.
+\begin{itemize}
+    \item \textbf{Submódulos:} 
+        \begin{itemize}
+            \item \texttt{QuestionGenerator}: Responsable de seleccionar contextos desde la base de datos vectorial y utilizar el LLM para formular preguntas. En esta fase, el sistema utiliza una estrategia de \textit{muestreo aleatorio} sobre los vectores disponibles en lugar de búsqueda semántica, garantizando así la variabilidad y no repetición de los temas en cada entrevista. 
+            \item \texttt{GeminiTheoryService}: Módulo especializado que consulta documentos bibliográficos (PDFs) cargados en memoria para generar explicaciones teóricas fundamentadas bajo demanda.
+        \end{itemize}
+    \item \textbf{Entrada:} Nivel de dificultad objetivo (Fácil/Medio/Difícil) y tipo de dataset.
+    \item \textbf{Salida:} Objeto de pregunta normalizado conteniendo el enunciado, la respuesta canónica y metadatos de dificultad.
+\end{itemize}
+
+\subsubsection{3. Motor de Evaluación Híbrido (Evaluator)}
+El núcleo analítico del sistema, definido en \texttt{src/project/metrics/evaluator.py}. A diferencia de los evaluadores tradicionales de NLP (como ROUGE o BLEU), este módulo ejecuta un pipeline secuencial de cuatro etapas para cada respuesta:
+
+\begin{itemize}
+    \item \textbf{Entrada:} Respuesta del usuario (texto libre) y Respuesta correcta (referencia).
+    \item \textbf{Proceso de Análisis:}
+        \begin{enumerate}
+            \item Cálculo de \textbf{Similitud Semántica} mediante modelos Transformer (\texttt{Sentence-BERT} \cite{sentencebert}).
+            \item \textbf{Validación Numérica} exacta y tolerante utilizando cálculo simbólico (\texttt{SymPy} \cite{sympy}).
+            \item Análisis de \textbf{Cobertura Conceptual} extrayendo entidades y palabras clave (\texttt{KeyBERT} \cite{keybert}, \texttt{spaCy} \cite{spacy}).
+            \item Evaluación heurística de la \textbf{Estructura Lógica} y formalidad.
+        \end{enumerate}
+    \item \textbf{Salida:} Objeto JSON con las puntuaciones parciales y el Score Global (0-1).
+\end{itemize}
+
+Adicionalmente a las métricas cuantitativas, el sistema genera cuatro secciones de retroalimentación accesibles desde el frontend:
+\begin{itemize}
+    \item \textbf{Comparativa Directa}: Visualización de la respuesta del usuario frente a la solución almacenada.
+    \item \textbf{Feedback de IA}: Análisis crítico generado por el LLM que explica las discrepancias semánticas o errores de concepto (ej. explicar por qué una respuesta es incompleta aunque contenga las palabras clave correctas).
+    \item \textbf{Solución Paso a Paso}: Generación de una guía detallada de resolución del problema (Chain-of-Thought) \cite{cot}, permitiendo al usuario identificar en qué etapa del razonamiento falló.
+    \item \textbf{Fundamentación Teórica}: Explicación académica obtenida mediante el sistema RAG sobre la bibliografía cargada, ofreciendo una fuente externa al modelo generativo.
+\end{itemize}
+
+\subsubsection{4. Gestor de Estado y Persistencia (Session Manager)}
+Se emplea \textbf{Redis} \cite{redis} como almacén de datos en memoria (key-value store) de baja latencia para mantener el contexto de la entrevista.
+\begin{itemize}
+    \item \textbf{Función:} Almacenar temporalmente el historial de la sesión, incluyendo las preguntas generadas, las respuestas del usuario y las métricas calculadas, permitiendo la recuperación de estado entre peticiones HTTP \textit{stateless}.
+    \item \textbf{Datos:} Serialización JSON de los objetos de sesión identificados por UUID (\texttt{session:\{uuid\}}).
+\end{itemize}
+
+\subsubsection{5. Cliente Web (Frontend)}
+Interfaz ligera construida con HTML, CSS, JavaScript, renderizada desde el servidor mediante \textbf{Jinja2} \cite{jinja2}.
+\begin{itemize}
+    \item \textbf{Función:} Captura de datos, gestión de la interacción de usuario y visualización de métricas en tiempo real.
+    \item \textbf{Comunicación:} Ejecución de llamadas asíncronas a los endpoints del backend para una experiencia de usuario fluida sin recargas de página.
+\end{itemize}
+
+\subsection{Flujo de Datos e Interacción}
+
+El ciclo de vida (Figura \ref{fig:uml}) de una pregunta dentro de una sesión sigue el siguiente esquema secuencial:
+
+\begin{enumerate}
+    \item \textbf{Solicitud:} El Usuario requiere una nueva pregunta. El \textit{Backend} invoca al \textit{Motor RAG} solicitando contenido acorde al nivel de dificultad actual registrado en \textit{Redis}.
+    \item \textbf{Procesamiento:} El \textit{QuestionGenerator} recupera el contexto, normaliza el enunciado con el LLM y lo devuelve al frontend.
+    \item \textbf{Respuesta:} El Usuario envía su solución. El \textit{Backend} almacena la respuesta en \textit{Redis} inmediatamente y delega el análisis al \textit{Background Task}.
+    \item \textbf{Evaluación Asíncrona:} El \textit{Evaluator} procesa la respuesta (análisis numérico, semántico y conceptual) en segundo plano, actualizando el registro en \textit{Redis} con las métricas resultantes una vez finalizado el cálculo.
+    \item \textbf{Adaptación:} Basándose en el \textit{Global Score} calculado, el sistema actualiza el estado de la dificultad (promoción/democión) para la siguiente iteración.
+    \item \textbf{Resultados:} Al finalizar el conjunto de preguntas, el sistema consolida los datos de \textit{Redis} y presenta un informe detallado de rendimiento por pregunta.
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{diagrams/uml_flow.png}
+    \caption{Ciclo de vida de sesión}
+    \label{fig:uml}
+\end{figure}
+
+% -------------------------------------------------------------------
+% SECCIÓN 3: DIARIO DE TRABAJO
+% -------------------------------------------------------------------
+\newpage
+\section{Diario de Trabajo}
+
+Esta sección documenta cronológicamente las decisiones técnicas, pruebas fallidas y evoluciones del sistema.
+
+\subsection{Fase 1: Definición y Estructura}
+El proyecto inició con la definición del alcance. Dentro de este bloque encontramos elementos como: selección de temática del proyecto, herramientas iniciales, objetivo final; y otros elementos correspondientes al \textbf{Análisis de Proyecto}.
+\begin{itemize}
+    \item Se realizó la planificación de módulos. Separación lógica del sistema de backend (véase Sección 2: Arquitectura del Sistema). Esto nos permitió enfocar el desarrollo desde un principio y evitar fallos por "conflictos de módulos". 
+    \item \textbf{15/10:} Búsqueda de datasets. Inicialmente se consideró crear un dataset propio, pero por limitaciones de tiempo y calidad de datos se pivotó hacia \textbf{SQuAD} (Stanford Question Answering Dataset) \cite{squad} como base. Posteriormente, se implementó un "Crawler" mediante Scrapy \cite{scrapy}, con el que se obtuvo el dataset \textbf{CoachQuant}, lo que obligó a refactorizar nuestra carga de datasets para soportar múltiples formatos.
+\end{itemize}
+
+\subsection{Fase 2: Selección de Modelos e IA}
+Durante esta semana se probaron intensivamente diversos LLMs para el motor de generación.
+\begin{itemize}
+    \item \textbf{Modelos Probados:} DialGPT (respuestas incoherentes en contexto técnico), Qwen y BERT Multilingual (buenos para clasificación, malos para generación), Llama (requería demasiada VRAM local para un rendimiento óptimo).
+    \item \textbf{Decisión Final:} Se seleccionó \textbf{Gemini} \cite{gemini2024report} vía API. Ofrecía la mejor ventana de contexto para el RAG y tiempos de respuesta moderados, vitales para la UX.
+\end{itemize}
+
+\subsection{Fase 3: Implementación del RAG y Evaluación}
+La implementación del RAG \cite{rag_survey} presentó un reto importante. Si el RAG devolvía erróneamente documentos o el LLM no entendía bien el formato, las preguntas generadas resultaban en "gibberish" (texto sin sentido). Para solucionar este problema se mejoraron los prompts generados así como la comprobación del contenido que devolvía el RAG.
+\begin{itemize}
+    \item \textbf{Prueba 1 (Fallida):} Uso de TF-IDF simple. Los resultados carecían de comprensión semántica.
+    \item \textbf{Prueba 2 (Exitosa):} Implementación de RAG avanzado con \textit{Context Ranking}. Se añadió un paso intermedio donde el LLM evalúa la relevancia de los fragmentos recuperados antes de formular la respuesta.
+    \item \textbf{Evaluación Semántica:} Se descubrió que comparar cadenas de texto exactas fallaba si el usuario usaba sinónimos. Se integró \textbf{BERTScore} \cite{bertscore} y \textbf{Sentence-Transformers} \cite{sentencebert}. Esto introdujo un problema de latencia (5-10 segundos por respuesta).
+\end{itemize}
+
+\subsection{Fase 4: Optimización y Adaptabilidad}
+Para solucionar la latencia descubierta en la fase anterior y mejorar la experiencia:
+\begin{enumerate}
+    \item \textbf{Background Tasks:} Se movió el cálculo pesado (\texttt{metrics/evaluator.py}) a segundo plano usando \texttt{BackgroundTasks} de FastAPI \cite{fastapi}. El usuario recibe confirmación inmediata y el frontend consulta (\textit{polling}) el resultado.
+    \item \textbf{Algoritmo Adaptativo:} Se observó que con una dificultad estática las preguntas podían cambiar de dificultad abruptamente. Como solución se programó una lógica de "rachas": si el usuario acierta 2 veces con score \(>0.85\), sube de nivel; si falla con \(<0.45\), baja.
+\end{enumerate}
+
+\subsection{Fase 5: Desarrollo constante y actualidad}
+Durante todo el desarrollo, a la vez que se profundizaba en el Backend se mejoraba el Frontend. Esto nos permitió una exploración de ideas realmente curiosa. Cuando implementábamos una "feature" en el backend, al ponerla en el frontend, se nos ocurrían otras mejoras para el sistema.
+
+Un ejemplo de este proceso fue con las pistas. Mientras implementábamos el feedback a la respuesta para que el usuario supiese que se estaba procesando, se nos ocurrió la posibilidad de ayudar al entrevistado mediante pistas para facilitar las preguntas más complejas. Esto además nos llevó a la implementación de la dificultad dinámica, generando así un ciclo de desarrollo realmente vivo y experimental.
+
+Por último, implementamos otros modelos (GROQ \cite{groq2024}) gratuitos por problemas de tokens con la API de Gemini, permitiendo al usuario usar otros LLM si lo ve preciso.
+
+Actualmente el sistema implementa todos los objetivos que habíamos planteado. Sin embargo, existen ciertos conceptos o mejoras que dejamos para desarrollar en la Sección \ref{sec:trabajo_futuro}.
+
+\section{Trabajo Futuro}
+\label{sec:trabajo_futuro}
+
+Si bien el sistema presenta un buen rendimiento, su escalabilidad puede mejorarse bastante, llegando a un desarrollo completo y real. \footnote{Este \textit{Desarrollo completo y real} supone una profundidad que se escapa al enfoque de la asignatura. Las mejoras que presentamos aquí deben tomarse como un objetivo de despliegue real o un trabajo superior al de una práctica.} A continuación mostramos diferentes apartados que podrían incluirse sobre nuestra base:
+
+\begin{itemize}
+    \item \textbf{Modelos}: los modelos actuales son todos versiones de prueba o gratuitos, la implementación de modelos más complejos (ChatGPT 4o \cite{openai2023gpt4}, Claude Opus u otros) seguramente resulten en un mejor rendimiento del presentado. Además, una posible solución es el uso de modelos específicos para categorías, i.e: modelo de biología, modelo de historia, etc. Permitiendo el uso de modelos más pequeños y eficientes, con el coste de desarrollar todos estos.
+    \item \textbf{Despliegue no local:} actualmente es necesario descargar el repositorio, dependencias, etc. Una implementación web completa, en la que el usuario únicamente tiene que acceder a la web sin ningún proceso intermedio.
+    \item \textbf{Datasets personalizados:} la capacidad de que el usuario suba sus propios datasets, o que se generen dado un PDF, URL u otro medio. Expandiría enormemente la profundidad que puede alcanzar la aplicación, permitiéndola ser un "experto" en cualquier situación que desee el usuario.
+    \item \textbf{Niveles de dificultad:} el sistema de dificultad contiene ciertos fallos a la hora de seleccionar la dificultad de las preguntas. Este problema puede ser inherente del dataset, o del sistema en sí. Como solución a esto se plantea un etiquetado (\textit{labeling}) manual para las preguntas o separación de los dataset por dificultad.
+    \item \textbf{Evaluación:} la evaluación planteada esta principalmente enfocada a los dataset que utilizamos. Esto puede afectar al rendimiento de la evaluación en otros sistemas. Como solución se podría implementar un sistema adaptativo que reconozca la naturaleza del dataset (matematico, literario, etc. ) y adapte la distribución de la evaluación de acuerdo con esto. 
+    \item \textbf{Analisis de resultados:} el formato de los resultados puede generar fallos en el analisis de las respuestas. Por ello, añadir algun tipo de estandarización u metodología mejoraria el rendimiento del analisis. 
+\end{itemize}
+
+% -------------------------------------------------------------------
+% ANEXOS
+% -------------------------------------------------------------------
+\newpage
+\appendix
+
+% -------------------------------------------------------------------
+% SECCIÓN 5: MANUAL DE INSTALACIÓN Y USO
+% -------------------------------------------------------------------
+\section{Manual de Instalación y Uso}
+
+\subsection{Requisitos del Sistema}
+Para el correcto despliegue de TAPL, se deben verificar los siguientes prerrequisitos en el entorno de host:
+\begin{itemize}
+    \item \textbf{Python:} Versión compatible entre 3.10 y 3.14. Se excluye Python 3.15+ debido a restricciones actuales en las dependencias de \texttt{torch} y \texttt{transformers}.
+    \item \textbf{Redis Server} \cite{redis}: Componente recomendado para la gestión eficiente de sesiones y colas de tareas. El sistema cuenta con un mecanismo de detección automática; en ausencia de un servidor Redis activo, la aplicación operará en modo degradado (memoria volátil) con capacidad limitada a un único proceso worker.
+    \item \textbf{Sistema Operativo:} Compatible con Linux, macOS y Windows (se recomienda WSL2 para este último).
+\end{itemize}
+
+\subsection{Proceso de Instalación}
+
+\subsubsection{Obtención del Código Fuente}
+Descargue el repositorio oficial y acceda al directorio del proyecto:
+\begin{lstlisting}[language=bash]
+git clone https://github.com/pabloChantada/TAPL.git
+cd TAPL
+\end{lstlisting}
+
+\subsubsection{Configuración del Entorno Virtual y Dependencias}
+El sistema utiliza el gestor de paquetes estándar de Python (\texttt{pip}). Se recomienda el uso de un entorno virtual para aislar las librerías del sistema:
+
+\begin{lstlisting}[language=bash]
+# 1. Crear entorno virtual 
+python -m venv .venv
+
+# 2. Activar el entorno
+# En Linux/macOS:
+source .venv/bin/activate
+# En Windows:
+.venv\Scripts\activate
+
+# 3. Instalar las dependencias exactas
+pip install -r requirements.txt
+\end{lstlisting}
+
+\subsubsection{Configuración de Variables de Entorno}
+Para que el sistema se conecte a los servicios externos, es necesario crear un archivo \texttt{.env} en la raíz del proyecto. Puede basarse en el archivo de ejemplo proporcionado o crear uno nuevo con las siguientes variables críticas:
+
+\begin{lstlisting}[language=bash]
+# Proveedor de Inteligencia Artificial
+LLM_PROVIDER=GEMINI
+
+# Credenciales de API (Obligatorio para RAG y Evaluación)
+GEMINI_API_KEY="tu_clave_api_google_aqui"
+DEEPSEEK_API_KEY="tu_api_key_de_deepseek_aqui"
+GROQ_API_KEY="tu_api_key_de_groq_aqui"
+
+# Referencias a los libros cargados (IDs de archivo o rutas, separados por comas)
+THEORY_BOOKS="files/id_libro_ejemplo"
+\end{lstlisting}
+
+\subsection{Ejecución del Sistema}
+Para facilitar el despliegue, se incluye un script de arranque (\texttt{scripts/run\_app.sh}) que configura automáticamente el servidor de aplicaciones \textit{Uvicorn}:
+
+\begin{lstlisting}[language=bash]
+chmod +x scripts/run_app.sh
+./scripts/run_app.sh
+\end{lstlisting}
+
+El script detectará si Redis está disponible para iniciar múltiples workers (modo producción) o uno solo (modo desarrollo). Una vez iniciado, acceda a la interfaz web en:
+\begin{center}
+    \url{http://localhost:8000}
+\end{center}
+
+\subsection{Guía de Uso}
+\begin{enumerate}
+    \item \textbf{Inicio de Sesión:} En la página de bienvenida, seleccione el número de preguntas y su dificultad inicial; y después pulse en \textit{Comenzar Entrevista}. Esto inicializará una nueva sesión única y cargará los contextos vectoriales.
+    \item \textbf{Interacción:} Responda a la pregunta planteada. Puede usar la función de "Pista" si necesita ayuda contextual sin revelar la solución.
+    \item \textbf{Evaluación:} Tras enviar su respuesta, el sistema procesará su entrada en segundo plano. Si su desempeño es alto, la siguiente pregunta aumentará de dificultad automáticamente, y viceversa.
+    \item \textbf{Resultados:} Al finalizar las preguntas, será redirigido al panel de métricas donde podrá ver el análisis semántico y matemático detallado así como explicaciones de la IA.
+\end{enumerate}
+
+% -------------------------------------------------------------------
+% SECCIÓN 6: Capturas de Pantalla
+% -------------------------------------------------------------------
+\newpage
+\section{Funcionamiento de la Página Web}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\linewidth]{diagrams/initial_page.png}
+    \caption{Página Inicial}
+    \label{fig:initial_page}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\linewidth]{diagrams/interview.png}
+    \caption{Entrevista en Proceso}
+    \label{fig:interview}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\linewidth]{diagrams/results1.png}
+    \caption{Resultados de Evaluación (Númerico)}
+    \label{fig:results1}
+\end{figure}
+xº
+\begin{figure}[H] % Cambia [h] por [H] para forzar la posición exacta
+    \centering
+    \includegraphics[width=0.8\linewidth]{diagrams/results2.png}
+    \caption{Resultados de Evaluación (Análisis de IA)}
+    \label{fig:results2}
+\end{figure}
+
+\clearpage % Usa \clearpage en lugar de \newpage para vaciar los elementos flotantes
+% -------------------------------------------------------------------
+% SECCIÓN 7: HERRAMIENTAS DE TERCEROS
+% -------------------------------------------------------------------
+\section{Herramientas de Terceros}
+
+La arquitectura de TAPL se fundamenta en componentes de software libre ampliamente reconocidos en la industria. A continuación, se detallan las principales librerías empleadas en el diseño e implementación:
+\begin{longtable}{|p{3cm}|p{8.5cm}|p{1.5cm}|p{2.5cm}|}
+\hline
+\textbf{Herramienta} & \textbf{Descripción} & \textbf{Licencia} & \textbf{URL} \\
+\hline
+\textbf{FastAPI} & Framework web moderno y de alto rendimiento para la construcción de APIs con Python. Se utiliza como el núcleo del backend para gestionar rutas y peticiones asíncronas. & MIT & \url{fastapi.tiangolo.com} \\
+\hline
+\textbf{LangChain} & Framework diseñado para simplificar la creación de aplicaciones que usen modelos de lenguaje. En este proyecto, controla el flujo de Recuperación Aumentada (RAG) y la abstracción de las interacciones con la base de datos vectorial. & MIT & \url{langchain.com} \\
+\hline
+\textbf{Redis} & Almacén de estructura de datos en memoria de código abierto, utilizado como base de datos, caché y broker de mensajes. Su función principal aquí es mantener el estado de las sesiones de usuario y gestionar las colas de tareas en segundo plano. & BSD-3 & \url{redis.io} \\
+\hline
+\textbf{ChromaDB} & Base de datos vectorial nativa para IA, diseñada para facilitar la construcción de aplicaciones con LLMs. Se emplea para almacenar y consultar eficientemente los embeddings generados a partir de los datasets de preguntas. & Apache 2.0 & \url{trychroma.com} \\
+\hline
+\textbf{Sentence Transformers} & Framework de Python para embeddings de oraciones, textos e imágenes de última generación. Permite calcular representaciones vectoriales densas para realizar comparaciones de similitud semántica precisas. & Apache 2.0 & \url{sbert.net} \\
+\hline
+\textbf{SymPy} & Biblioteca de Python para matemáticas simbólicas. Se utiliza aquí para la validación exacta y tolerante de respuestas numéricas complejas. & BSD & \url{sympy.org} \\
+\hline
+\textbf{Google GenAI SDK} & Kit de desarrollo de software oficial de Google para interactuar con los modelos Gemini. Facilita la generación de contenido, chat y razonamiento multimodal dentro de la aplicación. & Apache 2.0 & \url{ai.google.dev} \\
+\hline
+\textbf{KeyBERT} & Librería minimalista para la extracción de palabras clave utilizando embeddings BERT. Se utiliza para analizar la cobertura conceptual de las respuestas del usuario frente a las respuestas canónicas. & MIT & \url{github.com/MaartenGr/KeyBERT} \\
+\hline
+\textbf{spaCy} & Biblioteca de software libre para Procesamiento de Lenguaje Natural (NLP) avanzado en Python. Proporciona capacidades de lematización y reconocimiento de entidades nombradas necesarias para el análisis lingüístico del evaluador. & MIT & \url{spacy.io} \\
+\hline
+\textbf{Pydantic} & Librería de validación de datos y gestión de configuraciones mediante anotaciones de tipo de Python. Garantiza que los datos que fluyen entre el frontend y el backend cumplan con los esquemas definidos. & MIT & \url{docs.pydantic.dev} \\
+\hline
+\textbf{Jinja2} & Motor de plantillas rápido y expresivo para Python. Se utiliza para renderizar las vistas del frontend con datos dinámicos del backend. & BSD-3 & \url{jinja.palletsprojects.com} \\
+\hline
+\textbf{Scrapy} & Framework de código abierto para web scraping y rastreo web. Se utilizó para construir el crawler que recopiló el dataset CoachQuant. & BSD-3 & \url{scrapy.org} \\
+\hline
+\end{longtable}
+
+
+% -------------------------------------------------------------------
+% BIBLIOGRAFÍA
+% -------------------------------------------------------------------
+\newpage
+\begin{thebibliography}{99}
+
+\bibitem{squad}
+Rajpurkar, P., Zhang, J., Lopyrev, K., \& Liang, P. (2016).
+\textit{SQuAD: 100,000+ Questions for Machine Comprehension of Text}.
+arXiv preprint arXiv:1606.05250.
+
+\bibitem{bertscore}
+Zhang, T., Kishore, V., Wu, F., Weinberger, K. Q., \& Artzi, Y. (2019).
+\textit{BERTScore: Evaluating Text Generation with BERT}.
+International Conference on Learning Representations (ICLR).
+
+\bibitem{fastapi}
+Ramírez, S. (2018).
+\textit{FastAPI: High performance, easy to learn, fast to code, ready for production}.
+Documentación oficial, disponible en \url{https://fastapi.tiangolo.com}.
+
+\bibitem{sentencebert}
+Reimers, N., \& Gurevych, I. (2019).
+\textit{Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks}.
+arXiv preprint arXiv:1908.10084.
+
+\bibitem{openai2023gpt4}
+OpenAI. (2023).
+\textit{GPT-4 Technical Report}.
+arXiv preprint arXiv:2303.08774.
+
+\bibitem{gemini2024report}
+Google DeepMind. (2024).
+\textit{Gemini: A Family of Highly Capable Multimodal Models}.
+Informe técnico, documentación en \url{https://ai.google.dev}.
+
+\bibitem{sympy}
+Meurer, A., et al. (2017).
+\textit{SymPy: symbolic computing in Python}.
+PeerJ Computer Science, 3:e103. Documentación en \url{https://www.sympy.org}.
+
+\bibitem{keybert}
+Grootendorst, M. (2020).
+\textit{KeyBERT: Minimal Keyword Extraction with BERT}.
+Proyecto y documentación en \url{https://github.com/MaartenGr/KeyBERT}.
+
+\bibitem{spacy}
+Honnibal, M., \& Montani, I. (2017).
+\textit{spaCy 2: Natural language understanding with Bloom embeddings, convolutional neural networks and incremental parsing}.
+Software y documentación en \url{https://spacy.io}.
+
+\bibitem{rag_survey}
+Gao, L., et al. (2023).
+\textit{Retrieval-Augmented Generation for Large Language Models: A Survey}.
+arXiv preprint arXiv:2312.10997.
+
+\bibitem{cot}
+Wei, J., et al. (2022).
+\textit{Chain-of-Thought Prompting Elicits Reasoning in Large Language Models}.
+Advances in Neural Information Processing Systems (NeurIPS).
+
+\bibitem{redis}
+Redis Ltd. (2025).
+\textit{Redis Documentation}.
+Disponible en \url{https://redis.io}.
+
+\bibitem{chromadb}
+ChromaDB. (2024).
+\textit{Chroma: The AI-native open-source embedding database}.
+Documentación en \url{https://www.trychroma.com}.
+
+\bibitem{langchain}
+Chase, H. (2022).
+\textit{LangChain}.
+Framework para aplicaciones con LLMs. Documentación en \url{https://python.langchain.com}.
+
+\bibitem{sentence-transformers-lib}
+Reimers, N., \& Gurevych, I. (2019).
+\textit{Sentence-Transformers: Multilingual Sentence, Paragraph, and Image Embeddings}.
+Documentación en \url{https://www.sbert.net}.
+
+\bibitem{google-genai-sdk}
+Google. (2024).
+\textit{Google Generative AI Python SDK}.
+Documentación en \url{https://ai.google.dev}.
+
+\bibitem{pydantic}
+Colvin, S. (2023).
+\textit{Pydantic: Data validation and settings management using Python type hints}.
+Documentación en \url{https://docs.pydantic.dev}.
+
+\bibitem{jinja2}
+Ronacher, A. (2008).
+\textit{Jinja2: A modern and designer-friendly templating language for Python}.
+Documentación en \url{https://jinja.palletsprojects.com}.
+
+\bibitem{scrapy}
+Scrapy Developers. (2024).
+\textit{Scrapy: A Fast and Powerful Scraping and Web Crawling Framework}.
+Documentación en \url{https://scrapy.org}.
+
+\bibitem{fielding2000rest}
+Fielding, R. T. (2000).
+\textit{Architectural Styles and the Design of Network-based Software Architectures}.
+Doctoral dissertation, University of California, Irvine.
+
+\bibitem{groq2024}
+Groq. (2024).
+\textit{Groq: Fast AI Inference Technology}.
+Documentación en \url{https://groq.com}.
+
+\end{thebibliography}
+
+\end{document}

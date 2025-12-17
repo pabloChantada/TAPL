@@ -237,14 +237,14 @@ const InterviewChatbot = () => {
                 <input
                     type="range"
                     min="1"
-                    max="5"
+                    max="10"
                     value={desiredQuestions}
                     onChange={(e) => setDesiredQuestions(parseInt(e.target.value))}
                     className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                 />
                 <span className="font-black text-3xl text-indigo-400 w-12 text-center">{desiredQuestions}</span>
             </div>
-            <p className="text-xs text-slate-400">Selecciona entre 1 y 5 preguntas para tu evaluación.</p>
+            <p className="text-xs text-slate-400">Selecciona entre 1 y 10 preguntas para tu evaluación.</p>
         </div>
     );
 

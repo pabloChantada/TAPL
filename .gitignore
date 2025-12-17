@@ -212,3 +212,11 @@ __marimo__/
 /src/database/chroma_db_*/
 /src/database/chroma_db/
 dump.rdb
+/evaluacion_piechart.png
+graphs.py
+/reports/main.aux
+/reports/main.fdb_latexmk
+/reports/main.fls
+/reports/main.log
+/reports/main.out
+/reports/main.synctex.gz
