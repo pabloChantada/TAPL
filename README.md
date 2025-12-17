@@ -1,119 +1,85 @@
-# TAPL - Technical Assessment Preparation Lab
+# TAPL - Técnicas Avanzadas de Procesamiento de Lenguaje Natural
 
-TAPL es una plataforma interactiva diseñada para la preparación de entrevistas técnicas y cuantitativas. La aplicación utiliza Inteligencia Artificial Generativa y técnicas de RAG (Retrieval-Augmented Generation) para simular sesiones de entrevista, generar preguntas dinámicas, evaluar respuestas mediante métricas de NLP y proporcionar retroalimentación teórica.
+**Interview Generator** consiste en un sistema de evaluación inteligente que, mediante el uso de Large Language Models (LLMs), examina al usuario siguiendo métricas específicas de procesamiento de lenguaje natural.
 
 ## Características Principales
 
-  * **Generación Dinámica de Preguntas:** Capacidad para generar preguntas técnicas basadas en datasets como SQuAD y CoachQuant.
-  * **Evaluación Automática:** Comparación de la respuesta del usuario contra la respuesta correcta utilizando métricas avanzadas (BERTScore, ROUGE, BLEU) y evaluación semántica mediante LLMs.
-  * **Retroalimentación Inteligente:** Generación de feedback detallado y pistas (hints) contextuales para ayudar al usuario a mejorar sus respuestas.
-  * **Módulo de Teoría (RAG):** Consulta de conceptos teóricos basada en documentos y libros cargados (disponible con el proveedor Gemini).
-  * **Gestión de Sesiones:** Persistencia de estado de la entrevista utilizando Redis para soportar concurrencia, con un modo de respaldo en memoria para desarrollo local.
-  * **Interfaz Web:** Frontend integrado servido directamente desde FastAPI utilizando Jinja2.
+* **Generación Dinámica y Adaptativa:** El sistema ajusta la complejidad de las preguntas en tiempo real basándose en el rendimiento del usuario mediante una lógica de rachas de aciertos o fallos.
+* **Sistema de Evaluación Híbrido:** Analiza las respuestas a través de cuatro dimensiones fundamentales:
+* **Similitud Semántica:** Utiliza modelos de embeddings como Sentence-BERT para validar el contexto global y el significado de la respuesta.
+* **Validación Numérica y Simbólica:** Emplea la librería SymPy para verificar la exactitud de cálculos matemáticos y lógica cuantitativa.
+* **Cobertura Conceptual:** Realiza un análisis de densidad terminológica mediante KeyBERT y spaCy para asegurar la presencia de conceptos esenciales.
+* **Estructura de Razonamiento:** Evalúa la coherencia lógica, el uso de conectores y la formalidad técnica de la exposición.
+
+
+* **Módulo de Teoría (RAG):** Permite la consulta de conceptos teóricos fundamentados en documentos y libros cargados (disponible con el proveedor Gemini), lo que ayuda a reducir las alucinaciones del modelo.
+* **Retroalimentación Inteligente:** Proporciona feedback detallado, pistas contextuales y soluciones paso a paso siguiendo una estrategia de cadena de pensamiento (Chain-of-Thought).
+* **Gestión de Sesiones:** Mantiene la persistencia del estado de la entrevista utilizando Redis para soportar concurrencia, con un modo de respaldo en memoria para desarrollo local.
 
 ## Requisitos del Sistema
 
-  * **Python:** Versión 3.10 o superior (pero menor a 3.15).
-  * **Redis:** Recomendado para entornos de producción o múltiples workers. La aplicación funciona con un almacenamiento en memoria (MockRedis) si Redis no está disponible, pero esto limita la concurrencia a un solo proceso.
-  * **Gestor de Paquetes:** Poetry o venv.
+* **Python:** Versión compatible entre 3.10 y 3.14.
+* **Redis:** Recomendado para la gestión de sesiones y colas de tareas. Si no está disponible, la aplicación funciona con MockRedis, limitando la concurrencia a un solo proceso.
+* **Gestor de Paquetes:** Poetry o el uso de entornos virtuales con pip.
 
 ## Instalación
 
-1.  **Clonar el repositorio:**
+1. **Clonación del repositorio:**
+```bash
+git clone <url-del-repositorio>
+cd TAPL-main
 
-    ```bash
-    git clone <url-del-repositorio>
-    cd TAPL-main
-    ```
+```
 
-2.  **Instalar dependencias:**
 
-    El proyecto utiliza Poetry para la gestión de dependencias. Asegúrate de tenerlo instalado y ejecuta:
+2. **Instalación de dependencias:**
+Utilizando pip y un entorno virtual:
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
-    ```bash
-    poetry install
-    ```
-
-    Esto creará un entorno virtual e instalará todas las librerías necesarias especificadas en `pyproject.toml`, incluyendo FastAPI, Torch, Transformers y las librerías de cliente de Google GenAI y OpenAI.
-
-    Si quires usar un entorno propio de Python usa:
-    ```bash
-    python -m venv .venv
-    source .venv/bin/activate
-    pip install -r requirements.txt
-    ```
+```
 
 ## Configuración
 
-Crea un archivo `.env` en el directorio raíz del proyecto para configurar las variables de entorno necesarias.
+Es necesario crear un archivo `.env` en el directorio raíz basándose en el ejemplo proporcionado.
 
-### Variables Generales
+### Variables de Entorno
 
-  * `REDIS_URL`: URL de conexión a Redis (ejemplo: `redis://localhost:6379/0`).
-  * `LLM_PROVIDER`: Proveedor del modelo de lenguaje. Opciones soportadas: `GEMINI`, `DEEPSEEK`, `GROQ`. (Por defecto: `GEMINI`).
-
-### Credenciales de API
-
-Dependiendo del proveedor elegido (`LLM_PROVIDER`), configura las siguientes claves:
-
-  * `GEMINI_API_KEY`: Requerida si usas Google Gemini.
-  * `DEEPSEEK_API_KEY`: Requerida si usas DeepSeek.
-  * `OPENAI_API_KEY`: Requerida si se habilita funcionalidad de OpenAI.
-
-### Configuración de RAG (Solo Gemini)
-
-  * `THEORY_BOOKS`: Lista de nombres de archivos (separados por comas) previamente subidos a Google GenAI para ser utilizados como base de conocimiento en el módulo de teoría.
+* **LLM_PROVIDER:** Define el proveedor del modelo de lenguaje (GEMINI, DEEPSEEK o GROQ).
+* **Credenciales de API:** Se deben configurar las claves correspondientes al proveedor elegido (GEMINI_API_KEY, DEEPSEEK_API_KEY o GROQ_API_KEY).
+* **THEORY_BOOKS:** Lista de identificadores de archivos o rutas de libros cargados para el módulo de teoría RAG.
 
 ## Ejecución
 
-El proyecto incluye un script de automatización para iniciar el servidor.
+### Uso del script de arranque
 
-### Usando el script de arranque (Recomendado)
-
-El script `scripts/run_app.sh` detecta automáticamente si Redis está en ejecución y ajusta el número de workers de Uvicorn en consecuencia (4 workers con Redis, 1 worker sin Redis).
-
-*NOTA: Para el uso de multiples workers es necesario tener una instancia de redis ejecutandose con: ```bash redis-server```*
+El script `scripts/run_app.sh` detecta automáticamente la presencia de Redis y ajusta el número de workers de Uvicorn (4 con Redis, 1 en modo local).
 
 ```bash
 chmod +x scripts/run_app.sh
 ./scripts/run_app.sh
+
 ```
 
-### Ejecución manual con Poetry
-
-Alternativamente, puedes ejecutar la aplicación directamente a través de Poetry:
-
-```bash
-poetry run uvicorn src.project.app:app --host 0.0.0.0 --port 8000 --reload
-```
-
-Una vez iniciado, la aplicación estará disponible en `http://localhost:8000`.
-
-## API Endpoints
-
-La aplicación expone una API RESTful para la gestión del flujo de la entrevista. Los principales endpoints son:
-
-  * `POST /api/interview/start`: Inicia una nueva sesión de entrevista.
-  * `GET /api/interview/question/{session_id}`: Obtiene la siguiente pregunta de la sesión.
-  * `POST /api/interview/answer`: Envía una respuesta del usuario. La evaluación se procesa en segundo plano (Background Task).
-  * `POST /api/interview/hint`: Solicita una pista para la pregunta actual.
-  * `POST /api/feedback`: Genera retroalimentación cualitativa sobre una respuesta.
-  * `POST /api/theory`: Consulta explicaciones teóricas (RAG).
-  * `GET /api/datasets`: Lista los datasets disponibles para las preguntas.
+Una vez iniciado, la interfaz web estará disponible en `http://localhost:8000`.
 
 ## Estructura del Proyecto
 
-  * `src/project/app.py`: Punto de entrada de la aplicación FastAPI y definición de endpoints.
-  * `src/project/rag/`: Módulos relacionados con la generación de respuestas y conexión con LLMs (Gemini, etc.).
-  * `src/project/metrics/`: Servicios de evaluación (BERTScore, ROUGE) y feedback.
-  * `src/project/templates/` y `static/`: Archivos del frontend (HTML, CSS, JS).
-  * `scripts/`: Scripts de utilidad para carga de datos y ejecución del servidor.
+* **src/project/app.py:** Punto de entrada de la aplicación FastAPI y definición de los endpoints RESTful.
+* **src/project/rag/:** Módulos para la generación de preguntas y conexión con servicios de LLM.
+* **src/project/metrics/:** Servicios de evaluación (evaluator.py) y análisis de rendimiento.
+* **src/project/templates/ y static/:** Archivos de la interfaz de usuario desarrollados con Jinja2, CSS y JavaScript.
 
-## Notas sobre Evaluación
+## Datasets
 
-El sistema utiliza modelos de `sentence-transformers` y `evaluate` para calcular métricas locales. La primera vez que se ejecute una evaluación, es posible que el sistema descargue los modelos necesarios, lo que podría tomar unos instantes.
+El sistema utiliza datasets predefinidos para la generación de contenido técnico:
+
+* **SQuAD:** Stanford Question Answering Dataset.
+* **CoachQuant:** Dataset especializado obtenido mediante técnicas de rastreo web (crawling).
 
 ## Autores
 
-  * **Pablo Chantada Saborido (pablo.chantada@udc.es)**
-  * **Guillermo García Engelmo (g.garcia@udc.es)**
+* **Pablo Chantada Saborido (pablo.chantada@udc.es)**
+* **Guillermo García Engelmo (g.garcia@udc.es)**
