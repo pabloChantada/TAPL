@@ -12,6 +12,7 @@
 \usepackage{longtable}
 \usepackage{setspace} 
 \usepackage[titletoc]{appendix} 
+\usepackage{url}
 
 % Configuración de márgenes
 \geometry{top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm}
@@ -82,7 +83,7 @@
 
 \subsection{Resumen}
 
-TAPL (Técnicas Avanzadas de Procesamiento de Lenguaje) consiste en un sistema de evaluación inteligente que, mediante el uso de Large Language Models (LLMs) \cite{openai2023gpt4,gemini2024report,groq2024}, examina al usuario siguiendo métricas específicas de procesamiento de lenguaje natural. El objetivo principal es crear un sistema que permita al usuario prepararse eficazmente para entrevistas técnicas, exámenes o cualquier tipo de evaluación compleja, ofreciendo un entorno de simulación realista y retroalimentación instantánea.
+TAPL (Técnicas Avanzadas de Procesamiento de Lenguaje) consiste en un sistema de evaluación inteligente que, mediante el uso de Large Language Models (LLMs) \cite{openai2023gpt4,gemini2023,groq2024}, examina al usuario siguiendo métricas específicas de procesamiento de lenguaje natural. El objetivo principal es crear un sistema que permita al usuario prepararse eficazmente para entrevistas técnicas, exámenes o cualquier tipo de evaluación compleja, ofreciendo un entorno de simulación realista y retroalimentación instantánea.
 
 \subsection{Implementación del Sistema}
 Para facilitar el aprendizaje y diferenciarse de un sistema de preguntas y respuestas (QA) básico, TAPL implementa características avanzadas de evaluación y adaptación:
@@ -97,7 +98,7 @@ Para facilitar el aprendizaje y diferenciarse de un sistema de preguntas y respu
     \end{figure}
     \item \textbf{Sistema de Evaluación Híbrido}: El motor de evaluación descompone la respuesta del usuario en cuatro dimensiones (Figura \ref{fig:piechart}) fundamentales para calcular un puntaje de precisión integral:
         \begin{itemize}
-            \item \textbf{Similitud Semántica}: Utiliza modelos de \textit{embeddings} (como \texttt{all-mpnet-base-v2} \cite{sentencebert,sentence-transformers-lib}) para validar que el significado global y el contexto de la respuesta coincidan con la solución esperada, penalizando desviaciones semánticas independientemente de la redacción exacta.
+            \item \textbf{Similitud Semántica}: Utiliza modelos de \textit{embeddings} (como \texttt{all-mpnet-base-v2} \cite{sentencebert,reimers2019sentencetransformers}) para validar que el significado global y el contexto de la respuesta coincidan con la solución esperada, penalizando desviaciones semánticas independientemente de la redacción exacta.
             \item \textbf{Validación Numérica y Simbólica}: Emplea procesamiento simbólico (mediante \texttt{SymPy} \cite{sympy}) y expresiones regulares para verificar la exactitud matemática, aplicando tolerancias al redondeo y validando la lógica cuantitativa.
             \item \textbf{Cobertura Conceptual}: Realiza un análisis de densidad terminológica mediante técnicas como \textit{KeyBERT} \cite{keybert} y \textit{spaCy} \cite{spacy} para asegurar la presencia de palabras clave, tecnicismos y conceptos esenciales en la respuesta.
             \item \textbf{Estructura de Razonamiento}: Evalúa la coherencia lógica y la calidad de la exposición a través de la detección de conectores, pasos procedimentales secuenciales e indicadores de formalidad técnica.
@@ -105,7 +106,7 @@ Para facilitar el aprendizaje y diferenciarse de un sistema de preguntas y respu
     
     La validación númerica supone la mayor parte del rendimiento del sistema. Esto se debe a la dificultad de analizar mediante sistemas puramente sistacticos como de \textit{"correcta"} es una respuesta frente a otra. Por ello, identificamos que si el usuario onsigue la respuesta bien, deberia por lo menos "aprobar" la evaluación. \ref{sec:trabajo_futuro}
     
-    \item \textbf{Módulo de Teoría con RAG (Retrieval-Augmented Generation)} \cite{rag_survey}: Vinculación del modelo Google Gemini \cite{gemini2024report} con una base de datos bibliográfica. Esto permite generar explicaciones teóricas fundamentadas, donde el usuario puede verificar la fuente original de la información, reduciendo además las alucinaciones del modelo. \footnote{Esta funcionalidad requiere la configuración de la API de GEMINI.}
+    \item \textbf{Módulo de Teoría con RAG (Retrieval-Augmented Generation)} \cite{rag_survey}: Vinculación del modelo Google Gemini \cite{gemini2023,google-genai-sdk} con una base de datos bibliográfica. Esto permite generar explicaciones teóricas fundamentadas, donde el usuario puede verificar la fuente original de la información, reduciendo además las alucinaciones del modelo. \footnote{Esta funcionalidad requiere la configuración de la API de GEMINI.}
     
     \item \textbf{Interfaz Web Interactiva}: Se proporciona una interfaz web intuitiva y optimizada (Mirar \ref{}) para la gestión de sesiones de entrevista, visualización de métricas en tiempo real y revisión de resultados.
 \end{itemize}
@@ -240,7 +241,7 @@ El proyecto inició con la definición del alcance. Dentro de este bloque encont
 Durante esta semana se probaron intensivamente diversos LLMs para el motor de generación.
 \begin{itemize}
     \item \textbf{Modelos Probados:} DialGPT (respuestas incoherentes en contexto técnico), Qwen y BERT Multilingual (buenos para clasificación, malos para generación), Llama (requería demasiada VRAM local para un rendimiento óptimo).
-    \item \textbf{Decisión Final:} Se seleccionó \textbf{Gemini} \cite{gemini2024report} vía API. Ofrecía la mejor ventana de contexto para el RAG y tiempos de respuesta moderados, vitales para la UX.
+    \item \textbf{Decisión Final:} Se seleccionó \textbf{Gemini} \cite{gemini2023} vía API. Ofrecía la mejor ventana de contexto para el RAG y tiempos de respuesta moderados, vitales para la UX.
 \end{itemize}
 
 \subsection{Fase 3: Implementación del RAG y Evaluación}
@@ -248,7 +249,7 @@ La implementación del RAG \cite{rag_survey} presentó un reto importante. Si el
 \begin{itemize}
     \item \textbf{Prueba 1 (Fallida):} Uso de TF-IDF simple. Los resultados carecían de comprensión semántica.
     \item \textbf{Prueba 2 (Exitosa):} Implementación de RAG avanzado con \textit{Context Ranking}. Se añadió un paso intermedio donde el LLM evalúa la relevancia de los fragmentos recuperados antes de formular la respuesta.
-    \item \textbf{Evaluación Semántica:} Se descubrió que comparar cadenas de texto exactas fallaba si el usuario usaba sinónimos. Se integró \textbf{BERTScore} \cite{bertscore} y \textbf{Sentence-Transformers} \cite{sentencebert}. Esto introdujo un problema de latencia (5-10 segundos por respuesta).
+    \item \textbf{Evaluación Semántica:} Se descubrió que comparar cadenas de texto exactas fallaba si el usuario usaba sinónimos. Se integró \textbf{BERTScore} \cite{bertscore} y \textbf{Sentence-Transformers} \cite{reimers2019sentencetransformers}. Esto introdujo un problema de latencia (5-10 segundos por respuesta).
 \end{itemize}
 
 \subsection{Fase 4: Optimización y Adaptabilidad}
@@ -305,7 +306,7 @@ Para el correcto despliegue de TAPL, se deben verificar los siguientes prerrequi
 \subsubsection{Obtención del Código Fuente}
 Descargue el repositorio oficial y acceda al directorio del proyecto:
 \begin{lstlisting}[language=bash]
-git clone https://github.com/pabloChantada/TAPL.git
+git clone [https://github.com/pabloChantada/TAPL.git](https://github.com/pabloChantada/TAPL.git)
 cd TAPL
 \end{lstlisting}
 
@@ -407,29 +408,29 @@ La arquitectura de TAPL se fundamenta en componentes de software libre ampliamen
 \hline
 \textbf{Herramienta} & \textbf{Descripción} & \textbf{Licencia} & \textbf{URL} \\
 \hline
-\textbf{FastAPI} & Framework web moderno y de alto rendimiento para la construcción de APIs con Python. Se utiliza como el núcleo del backend para gestionar rutas y peticiones asíncronas. & MIT & \url{fastapi.tiangolo.com} \\
+\textbf{FastAPI} & Framework web moderno y de alto rendimiento para la construcción de APIs con Python. Se utiliza como el núcleo del backend para gestionar rutas y peticiones asíncronas. & MIT & \url{https://fastapi.tiangolo.com} \\
 \hline
-\textbf{LangChain} & Framework diseñado para simplificar la creación de aplicaciones que usen modelos de lenguaje. En este proyecto, controla el flujo de Recuperación Aumentada (RAG) y la abstracción de las interacciones con la base de datos vectorial. & MIT & \url{langchain.com} \\
+\textbf{LangChain} & Framework diseñado para simplificar la creación de aplicaciones que usen modelos de lenguaje. En este proyecto, controla el flujo de Recuperación Aumentada (RAG) y la abstracción de las interacciones con la base de datos vectorial. & MIT & \url{https://www.langchain.com} \\
 \hline
-\textbf{Redis} & Almacén de estructura de datos en memoria de código abierto, utilizado como base de datos, caché y broker de mensajes. Su función principal aquí es mantener el estado de las sesiones de usuario y gestionar las colas de tareas en segundo plano. & BSD-3 & \url{redis.io} \\
+\textbf{Redis} & Almacén de estructura de datos en memoria de código abierto, utilizado como base de datos, caché y broker de mensajes. Su función principal aquí es mantener el estado de las sesiones de usuario y gestionar las colas de tareas en segundo plano. & BSD-3 & \url{https://redis.io} \\
 \hline
-\textbf{ChromaDB} & Base de datos vectorial nativa para IA, diseñada para facilitar la construcción de aplicaciones con LLMs. Se emplea para almacenar y consultar eficientemente los embeddings generados a partir de los datasets de preguntas. & Apache 2.0 & \url{trychroma.com} \\
+\textbf{ChromaDB} & Base de datos vectorial nativa para IA, diseñada para facilitar la construcción de aplicaciones con LLMs. Se emplea para almacenar y consultar eficientemente los embeddings generados a partir de los datasets de preguntas. & Apache 2.0 & \url{https://www.trychroma.com} \\
 \hline
-\textbf{Sentence Transformers} & Framework de Python para embeddings de oraciones, textos e imágenes de última generación. Permite calcular representaciones vectoriales densas para realizar comparaciones de similitud semántica precisas. & Apache 2.0 & \url{sbert.net} \\
+\textbf{Sentence Transformers} & Framework de Python para embeddings de oraciones, textos e imágenes de última generación. Permite calcular representaciones vectoriales densas para realizar comparaciones de similitud semántica precisas. & Apache 2.0 & \url{https://www.sbert.net} \\
 \hline
-\textbf{SymPy} & Biblioteca de Python para matemáticas simbólicas. Se utiliza aquí para la validación exacta y tolerante de respuestas numéricas complejas. & BSD & \url{sympy.org} \\
+\textbf{SymPy} & Biblioteca de Python para matemáticas simbólicas. Se utiliza aquí para la validación exacta y tolerante de respuestas numéricas complejas. & BSD & \url{https://www.sympy.org} \\
 \hline
-\textbf{Google GenAI SDK} & Kit de desarrollo de software oficial de Google para interactuar con los modelos Gemini. Facilita la generación de contenido, chat y razonamiento multimodal dentro de la aplicación. & Apache 2.0 & \url{ai.google.dev} \\
+\textbf{Google GenAI SDK} & Kit de desarrollo de software oficial de Google para interactuar con los modelos Gemini. Facilita la generación de contenido, chat y razonamiento multimodal dentro de la aplicación. & Apache 2.0 & \url{https://ai.google.dev} \\
 \hline
-\textbf{KeyBERT} & Librería minimalista para la extracción de palabras clave utilizando embeddings BERT. Se utiliza para analizar la cobertura conceptual de las respuestas del usuario frente a las respuestas canónicas. & MIT & \url{github.com/MaartenGr/KeyBERT} \\
+\textbf{KeyBERT} & Librería minimalista para la extracción de palabras clave utilizando embeddings BERT. Se utiliza para analizar la cobertura conceptual de las respuestas del usuario frente a las respuestas canónicas. & MIT & \url{https://github.com/MaartenGr/KeyBERT} \\
 \hline
-\textbf{spaCy} & Biblioteca de software libre para Procesamiento de Lenguaje Natural (NLP) avanzado en Python. Proporciona capacidades de lematización y reconocimiento de entidades nombradas necesarias para el análisis lingüístico del evaluador. & MIT & \url{spacy.io} \\
+\textbf{spaCy} & Biblioteca de software libre para Procesamiento de Lenguaje Natural (NLP) avanzado en Python. Proporciona capacidades de lematización y reconocimiento de entidades nombradas necesarias para el análisis lingüístico del evaluador. & MIT & \url{https://spacy.io} \\
 \hline
-\textbf{Pydantic} & Librería de validación de datos y gestión de configuraciones mediante anotaciones de tipo de Python. Garantiza que los datos que fluyen entre el frontend y el backend cumplan con los esquemas definidos. & MIT & \url{docs.pydantic.dev} \\
+\textbf{Pydantic} & Librería de validación de datos y gestión de configuraciones mediante anotaciones de tipo de Python. Garantiza que los datos que fluyen entre el frontend y el backend cumplan con los esquemas definidos. & MIT & \url{https://docs.pydantic.dev} \\
 \hline
-\textbf{Jinja2} & Motor de plantillas rápido y expresivo para Python. Se utiliza para renderizar las vistas del frontend con datos dinámicos del backend. & BSD-3 & \url{jinja.palletsprojects.com} \\
+\textbf{Jinja2} & Motor de plantillas rápido y expresivo para Python. Se utiliza para renderizar las vistas del frontend con datos dinámicos del backend. & BSD-3 & \url{https://jinja.palletsprojects.com} \\
 \hline
-\textbf{Scrapy} & Framework de código abierto para web scraping y rastreo web. Se utilizó para construir el crawler que recopiló el dataset CoachQuant. & BSD-3 & \url{scrapy.org} \\
+\textbf{Scrapy} & Framework de código abierto para web scraping y rastreo web. Se utilizó para construir el crawler que recopiló el dataset CoachQuant. & BSD-3 & \url{https://scrapy.org} \\
 \hline
 \end{longtable}
 
@@ -438,113 +439,7 @@ La arquitectura de TAPL se fundamenta en componentes de software libre ampliamen
 % BIBLIOGRAFÍA
 % -------------------------------------------------------------------
 \newpage
-\begin{thebibliography}{99}
-
-\bibitem{squad}
-Rajpurkar, P., Zhang, J., Lopyrev, K., \& Liang, P. (2016).
-\textit{SQuAD: 100,000+ Questions for Machine Comprehension of Text}.
-arXiv preprint arXiv:1606.05250.
-
-\bibitem{bertscore}
-Zhang, T., Kishore, V., Wu, F., Weinberger, K. Q., \& Artzi, Y. (2019).
-\textit{BERTScore: Evaluating Text Generation with BERT}.
-International Conference on Learning Representations (ICLR).
-
-\bibitem{fastapi}
-Ramírez, S. (2018).
-\textit{FastAPI: High performance, easy to learn, fast to code, ready for production}.
-Documentación oficial, disponible en \url{https://fastapi.tiangolo.com}.
-
-\bibitem{sentencebert}
-Reimers, N., \& Gurevych, I. (2019).
-\textit{Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks}.
-arXiv preprint arXiv:1908.10084.
-
-\bibitem{openai2023gpt4}
-OpenAI. (2023).
-\textit{GPT-4 Technical Report}.
-arXiv preprint arXiv:2303.08774.
-
-\bibitem{gemini2024report}
-Google DeepMind. (2024).
-\textit{Gemini: A Family of Highly Capable Multimodal Models}.
-Informe técnico, documentación en \url{https://ai.google.dev}.
-
-\bibitem{sympy}
-Meurer, A., et al. (2017).
-\textit{SymPy: symbolic computing in Python}.
-PeerJ Computer Science, 3:e103. Documentación en \url{https://www.sympy.org}.
-
-\bibitem{keybert}
-Grootendorst, M. (2020).
-\textit{KeyBERT: Minimal Keyword Extraction with BERT}.
-Proyecto y documentación en \url{https://github.com/MaartenGr/KeyBERT}.
-
-\bibitem{spacy}
-Honnibal, M., \& Montani, I. (2017).
-\textit{spaCy 2: Natural language understanding with Bloom embeddings, convolutional neural networks and incremental parsing}.
-Software y documentación en \url{https://spacy.io}.
-
-\bibitem{rag_survey}
-Gao, L., et al. (2023).
-\textit{Retrieval-Augmented Generation for Large Language Models: A Survey}.
-arXiv preprint arXiv:2312.10997.
-
-\bibitem{cot}
-Wei, J., et al. (2022).
-\textit{Chain-of-Thought Prompting Elicits Reasoning in Large Language Models}.
-Advances in Neural Information Processing Systems (NeurIPS).
-
-\bibitem{redis}
-Redis Ltd. (2025).
-\textit{Redis Documentation}.
-Disponible en \url{https://redis.io}.
-
-\bibitem{chromadb}
-ChromaDB. (2024).
-\textit{Chroma: The AI-native open-source embedding database}.
-Documentación en \url{https://www.trychroma.com}.
-
-\bibitem{langchain}
-Chase, H. (2022).
-\textit{LangChain}.
-Framework para aplicaciones con LLMs. Documentación en \url{https://python.langchain.com}.
-
-\bibitem{sentence-transformers-lib}
-Reimers, N., \& Gurevych, I. (2019).
-\textit{Sentence-Transformers: Multilingual Sentence, Paragraph, and Image Embeddings}.
-Documentación en \url{https://www.sbert.net}.
-
-\bibitem{google-genai-sdk}
-Google. (2024).
-\textit{Google Generative AI Python SDK}.
-Documentación en \url{https://ai.google.dev}.
-
-\bibitem{pydantic}
-Colvin, S. (2023).
-\textit{Pydantic: Data validation and settings management using Python type hints}.
-Documentación en \url{https://docs.pydantic.dev}.
-
-\bibitem{jinja2}
-Ronacher, A. (2008).
-\textit{Jinja2: A modern and designer-friendly templating language for Python}.
-Documentación en \url{https://jinja.palletsprojects.com}.
-
-\bibitem{scrapy}
-Scrapy Developers. (2024).
-\textit{Scrapy: A Fast and Powerful Scraping and Web Crawling Framework}.
-Documentación en \url{https://scrapy.org}.
-
-\bibitem{fielding2000rest}
-Fielding, R. T. (2000).
-\textit{Architectural Styles and the Design of Network-based Software Architectures}.
-Doctoral dissertation, University of California, Irvine.
-
-\bibitem{groq2024}
-Groq. (2024).
-\textit{Groq: Fast AI Inference Technology}.
-Documentación en \url{https://groq.com}.
-
-\end{thebibliography}
+\bibliographystyle{plain}
+\bibliography{referencias}
 
 \end{document}

@@ -214,9 +214,10 @@ __marimo__/
 dump.rdb
 /evaluacion_piechart.png
 graphs.py
-/reports/main.aux
-/reports/main.fdb_latexmk
-/reports/main.fls
-/reports/main.log
-/reports/main.out
-/reports/main.synctex.gz
+/report/main.aux
+/report/main.fdb_latexmk
+/report/main.fls
+/report/main.log
+/report/main.out
+/report/main.synctex.gz
+/report/main.toc
