@@ -4,6 +4,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 import torch
+
+# Unicamente usamos SQUAD y Coachquant, pero importamos todos para soporte multi-dataset
 from .utils.dataset_readers import (
     reader_natural_questions,
     reader_SQUAD,
@@ -79,6 +81,8 @@ class RAG:
         """
         Método unificado para leer cualquier dataset según self.dataset_type.
         """
+
+        # Solo se usan SQUAD y CoachQuant aquí, pero se importan todos para soporte multi-dataset
         if self.dataset_type == "squad":
             return reader_SQUAD(max_texts, sample_random)
         elif self.dataset_type == "natural_questions":

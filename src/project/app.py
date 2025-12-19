@@ -22,16 +22,12 @@ from project.rag.answer_generator import AnswerGenerator
 from project.metrics.feedback_service import FeedbackService
 from project.metrics.explanation_service import ExplanationService
 from project.rag.gemini_rag_service import GeminiTheoryService
-
-# IMPORTANTE: Importamos tu nuevo evaluador avanzado
-# Asegúrate de que el archivo evaluator.py que subiste esté en project/metrics/evaluator.py
 from project.metrics.evaluator import evaluate_full
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
-TOTAL_QUESTIONS = 2
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv()
 
@@ -74,54 +70,63 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), na
 
 # --- MODELOS ---
 class Question(BaseModel):
+    """Modelo para representar una pregunta."""
     question: str
     @classmethod
     def as_form(cls, question: str = Form(...)):
         return cls(question=question)
 
 class InterviewSession(BaseModel):
+    """Modelo para la configuración de una sesión de entrevista."""
     session_id: Optional[str] = None
     total_questions: int = 3
     dataset_type: str = "natural_questions"
-    difficulty_level: str = "Facil" # Facil | Medio | Dificil
+    difficulty_level: str = "Facil" # Facil | Medio | Dificil
 
 class UserAnswer(BaseModel):
+    """Modelo para recibir la respuesta del usuario."""
     session_id: str
     question_number: int
     question_text: str
     answer_text: str
 
 class HintRequest(BaseModel):
+    """Modelo para solicitar una pista."""
     session_id: str
     question_number: int
 
 # --- HELPERS REDIS ---
 def get_session(session_id: str):
+    """Recupera los datos de la sesión desde Redis."""
     data = redis_client.get(f"session:{session_id}")
     return json.loads(data) if data else None
 
 def save_session(session_id: str, data: dict):
+    """Guarda los datos de la sesión en Redis."""
     redis_client.set(f"session:{session_id}", json.dumps(data))
 
 def get_answers(session_id: str) -> List[dict]:
+    """Recupera la lista de respuestas de una sesión."""
     data = redis_client.get(f"answers:{session_id}")
     return json.loads(data) if data else []
 
 def save_answers(session_id: str, data: List[dict]):
+    """Guarda la lista de respuestas en Redis."""
     redis_client.set(f"answers:{session_id}", json.dumps(data))
 
 def get_questions_map(session_id: str) -> dict:
+    """Recupera el mapa de preguntas de una sesión."""
     data = redis_client.get(f"qmap:{session_id}")
     return json.loads(data) if data else {}
 
 def save_questions_map(session_id: str, data: dict):
+    """Guarda el mapa de preguntas en Redis."""
     redis_client.set(f"qmap:{session_id}", json.dumps(data))
 
 # --- BACKGROUND TASK ---
 def process_evaluation_task(session_id: str, question_number: int, user_answer: str, correct_answer: str):
     """
-    Tarea en segundo plano: Ejecuta evaluate_full (SymPy, SBERT, etc.)
-    y actualiza la respuesta en Redis con la clave 'metrics'.
+    Tarea en segundo plano: Ejecuta la evaluación completa y actualiza la respuesta en Redis.
     """
     logger.info(f"[Background] Iniciando evaluación avanzada para {session_id} - P{question_number}")
     try:
@@ -153,10 +158,12 @@ def process_evaluation_task(session_id: str, question_number: int, user_answer: 
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
+    """Renderiza la página de inicio."""
     return templates.TemplateResponse(name="index.html", context={"request": request})
 
 @app.get("/api/datasets")
 async def get_available_datasets():
+    """Devuelve la lista de datasets disponibles."""
     return JSONResponse({
         "datasets": [
             {"id": "squad", "name": "SQuAD", "description": "Stanford Question Answering Dataset"},
@@ -166,6 +173,7 @@ async def get_available_datasets():
 
 @app.post("/api/interview/start")
 async def start_interview(session: InterviewSession):
+    """Inicia una nueva sesión de entrevista."""
     session_id = str(uuid.uuid4())
 
     # Configurar dataset
@@ -199,6 +207,7 @@ async def start_interview(session: InterviewSession):
 
 @app.get("/api/interview/question/{session_id}")
 async def get_next_question(session_id: str):
+    """Obtiene la siguiente pregunta para la sesión actual."""
     session = get_session(session_id)
     if not session:
         return JSONResponse(status_code=404, content={"error": "Sesión no encontrada"})
@@ -242,6 +251,7 @@ async def get_next_question(session_id: str):
 
 @app.post("/api/interview/answer")
 async def save_answer(answer: UserAnswer, background_tasks: BackgroundTasks):
+    """Guarda la respuesta del usuario y evalúa el desempeño."""
     session = get_session(answer.session_id)
     if not session:
         return JSONResponse(status_code=404, content={"error": "Sesión no encontrada"})
@@ -323,6 +333,7 @@ async def save_answer(answer: UserAnswer, background_tasks: BackgroundTasks):
 
 @app.post("/api/interview/hint")
 async def get_hint(payload: HintRequest):
+    """Genera una pista para la pregunta actual."""
     session_id = payload.session_id
     try:
         q_map = get_questions_map(session_id)
@@ -343,7 +354,8 @@ async def get_hint(payload: HintRequest):
 
 @app.post("/api/feedback")
 async def generate_feedback(payload: dict):
-    # Pasamos las métricas al feedback service para que el LLM sea consciente de la nota
+    """Genera feedback detallado sobre la respuesta del usuario."""
+    # Pasamos las métricas al servicio de feedback para contextualizar la respuesta
     try:
         feedback = feedback_service.generate_feedback(
             question=payload.get("question"),
@@ -357,6 +369,7 @@ async def generate_feedback(payload: dict):
 
 @app.post("/api/explanation")
 async def generate_explanation(payload: dict):
+    """Genera una explicación detallada de la respuesta correcta."""
     session_id = payload.get("session_id")
     question_number = payload.get("question_number")
     
@@ -382,11 +395,13 @@ async def generate_explanation(payload: dict):
 
 @app.post("/api/theory")
 async def get_theory(payload: dict):
+    """Obtiene la teoría relacionada con la pregunta."""
     explanation = theory_service.get_theory_explanation(payload.get("question"))
     return JSONResponse({"theory": explanation})
 
 @app.get("/results/{session_id}", response_class=HTMLResponse)
 async def show_results_page(request: Request, session_id: str):
+    """Muestra la página de resultados finales de la entrevista."""
     session = get_session(session_id)
     if not session:
         return HTMLResponse("<h1>Sesión no encontrada</h1>", status_code=404)
@@ -416,6 +431,7 @@ async def show_results_page(request: Request, session_id: str):
 
 @app.delete("/api/interview/session/{session_id}")
 async def end_interview(session_id: str):
+    """Finaliza la sesión de entrevista y limpia los datos temporales."""
     redis_client.delete(f"session:{session_id}")
     redis_client.delete(f"answers:{session_id}")
     redis_client.delete(f"qmap:{session_id}")

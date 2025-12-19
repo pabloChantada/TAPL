@@ -15,7 +15,6 @@ genai.configure(api_key=api_key)
 
 def upload_all_books():
     # 1. Definir la ruta de la carpeta de libros
-    # Asumimos que el script está en TAPL/scripts/ y los libros en TAPL/docs/books/
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     books_dir = os.path.join(base_dir, "docs", "books")
 
@@ -25,7 +24,7 @@ def upload_all_books():
     pdf_files = glob.glob(os.path.join(books_dir, "*.pdf"))
 
     if not pdf_files:
-        print("⚠️ No se encontraron archivos .pdf en la carpeta.")
+        print("No se encontraron archivos .pdf en la carpeta.")
         return
 
     uploaded_ids = []
@@ -41,9 +40,6 @@ def upload_all_books():
             # Subida del archivo
             file_ref = genai.upload_file(pdf_path, display_name=filename)
             
-            # Esperar a que se procese (opcional, pero recomendado para verificar estado)
-            # Aunque upload_file suele ser rápido, el estado 'ACTIVE' es lo ideal.
-            
             print(f"OK ID: {file_ref.name}")
             uploaded_ids.append(file_ref.name)
             
@@ -51,7 +47,7 @@ def upload_all_books():
             print(f"Error: {e}")
     # 4. Generar la línea para el .env
     print("\n" + "="*50)
-    print("🎉 ¡TODO LISTO! Copia esta línea en tu archivo .env:")
+    print("Lito. Copia esta línea en tu archivo .env:")
     print("="*50 + "\n")
     
     env_string = ",".join(uploaded_ids)

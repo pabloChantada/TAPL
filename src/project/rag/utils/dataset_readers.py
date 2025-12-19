@@ -1,6 +1,10 @@
 import numpy as np
 from datasets import load_dataset
 
+'''
+NOTA: Aqui solo usamos el SQUAD y Coachquant en la version final. Pero dejamos los otros readers
+por si en el futuro se quieren usar otros datasets.
+'''
 
 def _process_qa_texts(qa_texts, max_texts, sample_random, verbose=1):
     """Helper para procesar y limitar qa_texts."""
